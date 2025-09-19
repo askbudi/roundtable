@@ -10,13 +10,13 @@ import uuid
 from datetime import datetime
 from typing import Any, AsyncGenerator, Callable, Dict, List, Optional
 
-from ...core.terminal_ui import ui
-from ...models.messages import Message
+from claudable_helper.core.terminal_ui import ui
+from claudable_helper.models.messages import Message
 try:
     from claude_code_sdk import ClaudeSDKClient, ClaudeCodeOptions
 except ImportError:
     # Fall back to mock implementation
-    from ...external.claude_code_sdk import ClaudeSDKClient, ClaudeCodeOptions
+    from claudable_helper.external.claude_code_sdk import ClaudeSDKClient, ClaudeCodeOptions
 
 from ..base import BaseCLI, CLIType
 

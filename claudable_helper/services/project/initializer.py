@@ -8,7 +8,7 @@ import shutil
 from pathlib import Path
 from typing import Optional
 
-from ...core.config import settings
+from claudable_helper.core.config import settings
 # Commenting out filesystem import - this needs to be updated or mocked
 # from app.services.filesystem import (
     ensure_dir,
@@ -216,7 +216,7 @@ def create_project_metadata(project_id: str, name: str):
     try:
         with open(metadata_path, 'w', encoding='utf-8') as f:
             json.dump(metadata_data, f, indent=2, ensure_ascii=False)
-        from ...core.terminal_ui import ui
+        from claudable_helper.core.terminal_ui import ui
         ui.success(f"Created initial metadata at {metadata_path}", "Project")
     except Exception as e:
         ui.error(f"Failed to create metadata: {e}", "Project")
@@ -245,7 +245,7 @@ async def parse_and_update_project_metadata(project_id: str, db_session) -> dict
             metadata = json.load(f)
         
         # Update project in database
-        from ...models.projects import Project as ProjectModel
+        from claudable_helper.models.projects import Project as ProjectModel
         project = db_session.query(ProjectModel).filter(ProjectModel.id == project_id).first()
         
         if project:
@@ -285,7 +285,7 @@ def setup_claude_config(project_path: str):
         project_path: Path to the project repository directory
     """
     try:
-        from ...core.terminal_ui import ui
+        from claudable_helper.core.terminal_ui import ui
         
         # Create .claude directory structure
         claude_dir = os.path.join(project_path, ".claude")

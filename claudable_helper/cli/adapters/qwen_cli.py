@@ -16,8 +16,8 @@ import shutil
 from datetime import datetime
 from typing import Any, AsyncGenerator, Awaitable, Callable, Dict, List, Optional
 
-from ...core.terminal_ui import ui
-from ...models.messages import Message
+from claudable_helper.core.terminal_ui import ui
+from claudable_helper.models.messages import Message
 
 from ..base import BaseCLI, CLIType
 
@@ -815,7 +815,7 @@ class QwenCLI(BaseCLI):
     async def get_session_id(self, project_id: str) -> Optional[str]:
         if self.db_session:
             try:
-                from ...models.projects import Project
+                from claudable_helper.models.projects import Project
 
                 project = (
                     self.db_session.query(Project)
@@ -836,7 +836,7 @@ class QwenCLI(BaseCLI):
     async def set_session_id(self, project_id: str, session_id: str) -> None:
         if self.db_session:
             try:
-                from ...models.projects import Project
+                from claudable_helper.models.projects import Project
 
                 project = (
                     self.db_session.query(Project)

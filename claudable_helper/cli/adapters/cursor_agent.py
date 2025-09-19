@@ -11,8 +11,8 @@ import uuid
 from datetime import datetime
 from typing import Any, AsyncGenerator, Callable, Dict, List, Optional
 
-from ...models.messages import Message
-from ...core.terminal_ui import ui
+from claudable_helper.models.messages import Message
+from claudable_helper.core.terminal_ui import ui
 
 from ..base import BaseCLI, CLIType
 
@@ -516,7 +516,7 @@ class CursorAgentCLI(BaseCLI):
         """Get stored session ID for project to enable session continuity"""
         if self.db_session:
             try:
-                from ...models.projects import Project
+                from claudable_helper.models.projects import Project
 
                 project = (
                     self.db_session.query(Project)
@@ -539,7 +539,7 @@ class CursorAgentCLI(BaseCLI):
         # Store in database if available
         if self.db_session:
             try:
-                from ...models.projects import Project
+                from claudable_helper.models.projects import Project
 
                 project = (
                     self.db_session.query(Project)

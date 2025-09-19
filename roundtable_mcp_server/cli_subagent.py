@@ -12,12 +12,12 @@ from typing import Dict, List, Optional, Any, AsyncGenerator
 from pathlib import Path
 
 from tinyagent import tool, TinyCodeAgent
-from ..claudable_helper.cli.adapters.codex_cli import CodexCLI
-from ..claudable_helper.cli.adapters.claude_code import ClaudeCodeCLI
-from ..claudable_helper.cli.adapters.cursor_agent import CursorAgentCLI
-from ..claudable_helper.cli.adapters.gemini_cli import GeminiCLI
-from ..claudable_helper.core.terminal_ui import ui
-from ..claudable_helper.models.messages import Message
+from claudable_helper.cli.adapters.codex_cli import CodexCLI
+from claudable_helper.cli.adapters.claude_code import ClaudeCodeCLI
+from claudable_helper.cli.adapters.cursor_agent import CursorAgentCLI
+from claudable_helper.cli.adapters.gemini_cli import GeminiCLI
+from claudable_helper.core.terminal_ui import ui
+from claudable_helper.models.messages import Message
 
 
 # Global CLI adapter instances

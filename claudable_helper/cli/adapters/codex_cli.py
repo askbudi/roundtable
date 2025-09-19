@@ -12,8 +12,8 @@ import uuid
 from datetime import datetime
 from typing import Any, AsyncGenerator, Callable, Dict, List, Optional
 
-from ...core.terminal_ui import ui
-from ...models.messages import Message
+from claudable_helper.core.terminal_ui import ui
+from claudable_helper.models.messages import Message
 
 from ..base import BaseCLI, CLIType
 
@@ -621,7 +621,7 @@ Do not create subdirectories unless specifically requested by the user.
         # Try to get from database first
         if self.db_session:
             try:
-                from ...models.projects import Project
+                from claudable_helper.models.projects import Project
 
                 project = (
                     self.db_session.query(Project)
@@ -652,7 +652,7 @@ Do not create subdirectories unless specifically requested by the user.
         # Store in database
         if self.db_session:
             try:
-                from ...models.projects import Project
+                from claudable_helper.models.projects import Project
 
                 project = (
                     self.db_session.query(Project)
@@ -697,7 +697,7 @@ Do not create subdirectories unless specifically requested by the user.
         """Get stored rollout file path for project"""
         if self.db_session:
             try:
-                from ...models.projects import Project
+                from claudable_helper.models.projects import Project
 
                 project = (
                     self.db_session.query(Project)
@@ -727,7 +727,7 @@ Do not create subdirectories unless specifically requested by the user.
         """Store rollout file path for project"""
         if self.db_session:
             try:
-                from ...models.projects import Project
+                from claudable_helper.models.projects import Project
 
                 project = (
                     self.db_session.query(Project)
