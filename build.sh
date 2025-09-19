@@ -2,7 +2,7 @@
 
 # Build and upload roundtable-ai package to PyPI with version management
 # Usage: ./roundtable_mcp_server/build.sh [version-type]
-# version-type: patch (default), minor, or major
+# version-type: minor (default), patch, or major
 
 set -e  # Exit on any error
 
@@ -29,8 +29,8 @@ if ! python -c "import keyring; import keyring.backends.OS_X; keyring.get_keyrin
     echo -e "${YELLOW}⚠ PyPI credentials not found. You may be prompted for credentials during upload.${NC}"
 fi
 
-# Get version type from argument (default: patch)
-VERSION_TYPE=${1:-patch}
+# Get version type from argument (default: minor)
+VERSION_TYPE=${1:-minor}
 
 if [[ ! "$VERSION_TYPE" =~ ^(patch|minor|major)$ ]]; then
     echo -e "${RED}❌ Invalid version type: $VERSION_TYPE. Use patch, minor, or major.${NC}"
@@ -143,30 +143,6 @@ echo -e "${BLUE}📤 Uploading to PyPI...${NC}"
 twine upload dist/*
 
 echo -e "${GREEN}🎉 Successfully published roundtable-ai@$NEW_VERSION to PyPI!${NC}"
-
-# Git operations (optional)
-echo -e "${YELLOW}❓ Would you like to commit and tag this version in git? (y/N)${NC}"
-read -r git_response
-
-if [[ "$git_response" =~ ^[Yy]$ ]]; then
-    cd "$PROJECT_ROOT/.."
-    git add roundtable_mcp_server/pyproject.toml
-    [[ -f "roundtable_mcp_server/roundtable_ai/__init__.py" ]] && git add roundtable_mcp_server/roundtable_ai/__init__.py
-    git add roundtable_mcp_server/build.sh
-    git commit -m "Bump roundtable-ai to v$NEW_VERSION"
-    git tag "roundtable-ai-v$NEW_VERSION"
-    echo -e "${GREEN}✅ Created git commit and tag for roundtable-ai-v$NEW_VERSION${NC}"
-
-    echo -e "${YELLOW}❓ Push to remote repository? (y/N)${NC}"
-    read -r push_response
-
-    if [[ "$push_response" =~ ^[Yy]$ ]]; then
-        CURRENT_BRANCH=$(git branch --show-current)
-        git push origin "$CURRENT_BRANCH"
-        git push origin "roundtable-ai-v$NEW_VERSION"
-        echo -e "${GREEN}✅ Pushed to remote repository${NC}"
-    fi
-fi
 
 echo -e "${GREEN}🏁 Process completed successfully!${NC}"
 echo -e "${BLUE}📋 Summary:${NC}"
