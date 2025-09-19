@@ -19,6 +19,8 @@ from typing import Any, Dict, List, Optional, Set
 from fastmcp import FastMCP, Context
 from pydantic import BaseModel, Field
 
+from .availability_checker import CLIAvailabilityChecker
+
 # Configure logging with debug traces
 log_file = Path.cwd() / "roundtable_mcp_server.log"
 logging.basicConfig(
@@ -56,23 +58,28 @@ class ServerConfig(BaseModel):
     )
 
 
-# Parse configuration from environment
+# Parse configuration from environment and availability cache
 def parse_config_from_env() -> ServerConfig:
-    """Parse server configuration from environment variables.
+    """Parse server configuration from environment variables and availability cache.
 
     Environment variables:
-    - CLI_MCP_SUBAGENTS: Comma-separated list of subagents to enable
+    - CLI_MCP_SUBAGENTS: Comma-separated list of subagents to enable (overrides availability cache)
     - CLI_MCP_WORKING_DIR: Default working directory for subagents
     - CLI_MCP_DEBUG: Enable debug logging (true/false)
+    - CLI_MCP_IGNORE_AVAILABILITY: Ignore availability cache and enable all subagents (true/false)
 
     Returns:
         ServerConfig instance
     """
     config = ServerConfig()
 
+    # Check if we should ignore availability cache
+    ignore_availability = os.getenv("CLI_MCP_IGNORE_AVAILABILITY", "false").lower() in ("true", "1", "yes", "on")
+
     # Parse enabled subagents
     subagents_env = os.getenv("CLI_MCP_SUBAGENTS")
     if subagents_env:
+        # Environment variable override - use specified subagents
         subagents = [s.strip().lower() for s in subagents_env.split(",") if s.strip()]
         valid_subagents = {"codex", "claude", "cursor", "gemini"}
         config.subagents = [s for s in subagents if s in valid_subagents]
@@ -80,6 +87,25 @@ def parse_config_from_env() -> ServerConfig:
         invalid = set(subagents) - valid_subagents
         if invalid:
             logger.warning(f"Invalid subagent names ignored: {', '.join(invalid)}")
+
+        logger.info(f"Using subagents from environment variable: {config.subagents}")
+    elif ignore_availability:
+        # Ignore availability cache and enable all subagents
+        config.subagents = ["codex", "claude", "cursor", "gemini"]
+        logger.info("Ignoring availability cache - enabling all subagents")
+    else:
+        # Use availability cache to determine enabled subagents
+        checker = CLIAvailabilityChecker()
+        available_clis = checker.get_available_clis()
+
+        if available_clis:
+            config.subagents = available_clis
+            logger.info(f"Using available subagents from cache: {config.subagents}")
+        else:
+            # Fallback to default if no availability data
+            logger.warning("No availability data found, falling back to default subagents")
+            logger.warning("Run 'python -m roundtable_mcp_server.availability_checker --check' to check CLI availability")
+            config.subagents = ["codex", "claude", "cursor", "gemini"]
 
     # Parse working directory
     working_dir = os.getenv("CLI_MCP_WORKING_DIR")
@@ -93,20 +119,28 @@ def parse_config_from_env() -> ServerConfig:
     return config
 
 
-# Get configuration
-config = parse_config_from_env()
-enabled_subagents = set(config.subagents)
-working_dir = Path(config.working_dir) if config.working_dir else Path.cwd()
+# Global configuration variables (will be set in main())
+config = None
+enabled_subagents = set()
+working_dir = Path.cwd()
 
 # Setup path for imports
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
-logger.info(f"Initializing Roundtable AI MCP Server")
-logger.info(f"Enabled subagents: {', '.join(enabled_subagents)}")
-logger.info(f"Working directory: {working_dir}")
-
 # Initialize FastMCP server
 server = FastMCP("roundtable-ai")
+
+def initialize_config():
+    """Initialize configuration - called from main()."""
+    global config, enabled_subagents, working_dir
+
+    config = parse_config_from_env()
+    enabled_subagents = set(config.subagents)
+    working_dir = Path(config.working_dir) if config.working_dir else Path.cwd()
+
+    logger.info(f"Initializing Roundtable AI MCP Server")
+    logger.info(f"Enabled subagents: {', '.join(enabled_subagents)}")
+    logger.info(f"Working directory: {working_dir}")
 
 
 # Tool definitions
@@ -490,8 +524,70 @@ async def gemini_subagent(
         return f"❌ {error_msg}"
 
 
+async def run_availability_check():
+    """Run CLI availability check and save results."""
+    from .availability_checker import main as availability_main
+    await availability_main()
+
+
 def main():
     """Main entry point for the MCP server."""
+    import argparse
+
+    parser = argparse.ArgumentParser(
+        description="Roundtable AI MCP Server - CLI Integration",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""
+Examples:
+  python -m roundtable_mcp_server                    # Start MCP server with auto-detected agents
+  python -m roundtable_mcp_server --check            # Check CLI availability
+  python -m roundtable_mcp_server --agents codex,gemini  # Start with specific agents
+
+Environment Variables:
+  CLI_MCP_SUBAGENTS          Comma-separated list of subagents (codex,claude,cursor,gemini)
+  CLI_MCP_WORKING_DIR        Default working directory
+  CLI_MCP_DEBUG             Enable debug logging (true/false)
+  CLI_MCP_IGNORE_AVAILABILITY  Ignore availability cache (true/false)
+
+Priority Order:
+  1. Command line --agents flag (highest priority)
+  2. Environment variable CLI_MCP_SUBAGENTS
+  3. Availability cache from ~/.roundtable/availability_check.json
+  4. Default to all agents (lowest priority)
+        """
+    )
+    parser.add_argument(
+        "--check",
+        action="store_true",
+        help="Check CLI availability and save results to ~/.roundtable/availability_check.json"
+    )
+    parser.add_argument(
+        "--agents",
+        type=str,
+        help="Comma-separated list of agents to enable (codex,claude,cursor,gemini)"
+    )
+
+    args = parser.parse_args()
+
+    if args.check:
+        # Run availability check
+        print("🔍 Checking CLI availability...")
+        try:
+            asyncio.run(run_availability_check())
+        except Exception as e:
+            logger.error(f"Availability check failed: {e}")
+            sys.exit(1)
+        return
+
+    # If --agents flag is provided, set it as environment variable (highest priority)
+    if args.agents:
+        os.environ["CLI_MCP_SUBAGENTS"] = args.agents
+        print(f"📋 Using agents from command line: {args.agents}")
+
+    # Initialize configuration after processing command line arguments
+    initialize_config()
+
+    # Normal server startup
     logger.info("=" * 60)
     logger.info(f"Roundtable AI MCP Server starting at {datetime.now()}")
     logger.info("=" * 60)

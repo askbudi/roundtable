@@ -43,7 +43,7 @@ def main():
   "mcpServers": {
     "roundtable-ai": {
       "command": "python",
-      "args": ["-m", "py_wizard_cli.cli_intg_mcp_server"],
+      "args": ["-m", "roundtable_mcp_server"],
       "env": {
         "CLI_MCP_SUBAGENTS": "codex,claude,cursor,gemini",
         "CLI_MCP_WORKING_DIR": "/path/to/your/project"

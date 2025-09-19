@@ -4,8 +4,8 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "roundtable-ai"
-version = "0.1.0"
-description = "MCP Server for CLI Integration with AI Assistants by Roundtable AI"
+version = "0.1.1"
+description = "Zero-configuration MCP server that unifies multiple AI coding assistants (Codex, Claude Code, Cursor, Gemini) through intelligent auto-discovery and standardized interface"
 authors = [{name = "Roundtable AI", email = "support@askbudi.ai"}]
 readme = "README.md"
 requires-python = ">=3.8"
@@ -19,23 +19,20 @@ classifiers = [
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
+    "Topic :: Software Development :: Code Generators",
+    "Topic :: Software Development :: Libraries :: Application Frameworks",
+    "Topic :: System :: Systems Administration",
+    "Environment :: Console",
+    "Framework :: AsyncIO",
 ]
 dependencies = [
     "fastmcp>=0.1.0",
-    "pydantic>=2.0.0",
-    "typer[all]>=0.12.0",
-    "rich>=13.0.0",
-    "prompt_toolkit>=3.0.0",
-    "requests>=2.31.0",
-    "httpx>=0.27.0",
-    "gitpython>=3.1.0",
-    "toml>=0.10.0",
-    "click>=8.0.0",
-    "tinyagent-py[all]>=0.1.18",
-    "aiosqlite>=0.21.0",
-    # Claudable dependencies
     "aiohttp>=3.8.0",
     "sqlalchemy>=2.0.0",
+    "claude_code_sdk",
+    "pydantic>=2.7",
+    "tinyagent-py[all]>=0.1.18",
+    "httpx>=0.27.0"
 ]
 
 [project.optional-dependencies]
@@ -51,6 +48,7 @@ dev = [
 
 [project.scripts]
 roundtable-mcp-server = "roundtable_mcp_server.server:main"
+roundtable-ai = "roundtable_mcp_server.server:main"
 
 [project.urls]
 Homepage = "https://askbudi.ai"
