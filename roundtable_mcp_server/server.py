@@ -16,10 +16,29 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Set
 
-from fastmcp import FastMCP, Context
+from mcp.server.fastmcp import FastMCP, Context
 from pydantic import BaseModel, Field
 
-from .availability_checker import CLIAvailabilityChecker
+# Handle imports for both package and direct execution
+def _import_module_item(module_name: str, item_name: str):
+    """Import an item from a module, handling both package and direct execution."""
+    try:
+        # Try relative import first (package execution)
+        import importlib
+        package = __package__ or "roundtable_mcp_server"
+        module = importlib.import_module(f".{module_name}", package=package)
+        return getattr(module, item_name)
+    except (ImportError, ValueError, TypeError):
+        # Fall back to absolute import (direct execution)
+        current_dir = Path(__file__).parent
+        if str(current_dir) not in sys.path:
+            sys.path.insert(0, str(current_dir))
+        import importlib
+        module = importlib.import_module(module_name)
+        return getattr(module, item_name)
+
+# Import required classes and functions
+CLIAvailabilityChecker = _import_module_item("availability_checker", "CLIAvailabilityChecker")
 
 # Configure logging with debug traces
 log_file = Path.cwd() / "roundtable_mcp_server.log"
@@ -144,7 +163,7 @@ def initialize_config():
 
 
 # Tool definitions
-@server.tool
+@server.tool()
 async def check_codex_availability(ctx: Context = None) -> str:
     """
     Check if Codex CLI is available and configured properly.
@@ -158,7 +177,7 @@ async def check_codex_availability(ctx: Context = None) -> str:
     logger.info("Checking Codex availability")
 
     try:
-        from .cli_subagent import check_codex_availability as check_codex
+        check_codex = _import_module_item("cli_subagent", "check_codex_availability")
         result = await check_codex()
         logger.debug(f"Codex availability result: {result}")
         return result
@@ -168,7 +187,7 @@ async def check_codex_availability(ctx: Context = None) -> str:
         return f"❌ {error_msg}"
 
 
-@server.tool
+@server.tool()
 async def check_claude_availability(ctx: Context = None) -> str:
     """
     Check if Claude Code CLI is available and configured properly.
@@ -182,7 +201,7 @@ async def check_claude_availability(ctx: Context = None) -> str:
     logger.info("Checking Claude Code availability")
 
     try:
-        from .cli_subagent import check_claude_availability as check_claude
+        check_claude = _import_module_item("cli_subagent", "check_claude_availability")
         result = await check_claude()
         logger.debug(f"Claude availability result: {result}")
         return result
@@ -192,7 +211,7 @@ async def check_claude_availability(ctx: Context = None) -> str:
         return f"❌ {error_msg}"
 
 
-@server.tool
+@server.tool()
 async def check_cursor_availability(ctx: Context = None) -> str:
     """
     Check if Cursor Agent CLI is available and configured properly.
@@ -206,7 +225,7 @@ async def check_cursor_availability(ctx: Context = None) -> str:
     logger.info("Checking Cursor Agent availability")
 
     try:
-        from .cli_subagent import check_cursor_availability as check_cursor
+        check_cursor = _import_module_item("cli_subagent", "check_cursor_availability")
         result = await check_cursor()
         logger.debug(f"Cursor availability result: {result}")
         return result
@@ -216,7 +235,7 @@ async def check_cursor_availability(ctx: Context = None) -> str:
         return f"❌ {error_msg}"
 
 
-@server.tool
+@server.tool()
 async def check_gemini_availability(ctx: Context = None) -> str:
     """
     Check if Gemini CLI is available and configured properly.
@@ -230,7 +249,7 @@ async def check_gemini_availability(ctx: Context = None) -> str:
     logger.info("Checking Gemini availability")
 
     try:
-        from .cli_subagent import check_gemini_availability as check_gemini
+        check_gemini = _import_module_item("cli_subagent", "check_gemini_availability")
         result = await check_gemini()
         logger.debug(f"Gemini availability result: {result}")
         return result
@@ -240,7 +259,7 @@ async def check_gemini_availability(ctx: Context = None) -> str:
         return f"❌ {error_msg}"
 
 
-@server.tool
+@server.tool()
 async def codex_subagent(
     instruction: str,
     project_path: Optional[str] = None,
@@ -290,7 +309,7 @@ async def codex_subagent(
     logger.info(f"Executing Codex subagent with instruction: {instruction[:100]}...")
 
     try:
-        from .cli_subagent import codex_subagent as codex_exec
+        codex_exec = _import_module_item("cli_subagent", "codex_subagent")
 
         result = await codex_exec(
             instruction=instruction,
@@ -311,7 +330,7 @@ async def codex_subagent(
         return f"❌ {error_msg}"
 
 
-@server.tool
+@server.tool()
 async def claude_subagent(
     instruction: str,
     project_path: Optional[str] = None,
@@ -361,7 +380,7 @@ async def claude_subagent(
     logger.info(f"Executing Claude subagent with instruction: {instruction[:100]}...")
 
     try:
-        from .cli_subagent import claude_subagent as claude_exec
+        claude_exec = _import_module_item("cli_subagent", "claude_subagent")
 
         result = await claude_exec(
             instruction=instruction,
@@ -382,7 +401,7 @@ async def claude_subagent(
         return f"❌ {error_msg}"
 
 
-@server.tool
+@server.tool()
 async def cursor_subagent(
     instruction: str,
     project_path: Optional[str] = None,
@@ -432,7 +451,7 @@ async def cursor_subagent(
     logger.info(f"Executing Cursor subagent with instruction: {instruction[:100]}...")
 
     try:
-        from .cli_subagent import cursor_subagent as cursor_exec
+        cursor_exec = _import_module_item("cli_subagent", "cursor_subagent")
 
         result = await cursor_exec(
             instruction=instruction,
@@ -453,7 +472,7 @@ async def cursor_subagent(
         return f"❌ {error_msg}"
 
 
-@server.tool
+@server.tool()
 async def gemini_subagent(
     instruction: str,
     project_path: Optional[str] = None,
@@ -503,7 +522,7 @@ async def gemini_subagent(
     logger.info(f"Executing Gemini subagent with instruction: {instruction[:100]}...")
 
     try:
-        from .cli_subagent import gemini_subagent as gemini_exec
+        gemini_exec = _import_module_item("cli_subagent", "gemini_subagent")
 
         result = await gemini_exec(
             instruction=instruction,
@@ -526,7 +545,7 @@ async def gemini_subagent(
 
 async def run_availability_check():
     """Run CLI availability check and save results."""
-    from .availability_checker import main as availability_main
+    availability_main = _import_module_item("availability_checker", "main")
     await availability_main()
 
 
@@ -593,7 +612,7 @@ Priority Order:
     logger.info("=" * 60)
 
     try:
-        # Note: FastMCP handles tool filtering via the @server.tool decorators
+        # Note: FastMCP handles tool filtering via the @server.tool() decorators
         # The enabled_subagents check is done in each tool function
         logger.info(f"Enabled subagents: {', '.join(enabled_subagents)}")
 
