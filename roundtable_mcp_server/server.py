@@ -477,6 +477,24 @@ async def claude_subagent(
     if "claude" not in enabled_subagents:
         return "❌ Claude subagent is not enabled in this server instance"
 
+    if not CLI_ADAPTERS_AVAILABLE:
+        # Fallback to old method if CLI adapters not available
+        try:
+            claude_exec = _import_module_item("cli_subagent", "claude_subagent")
+            result = await claude_exec(
+                instruction=instruction,
+                project_path=project_path,
+                session_id=session_id,
+                model=model,
+                images=None,
+                is_initial_prompt=is_initial_prompt
+            )
+            return result
+        except Exception as e:
+            error_msg = f"Error executing Claude subagent: {str(e)}"
+            logger.error(error_msg, exc_info=True)
+            return f"❌ {error_msg}"
+
     # Robust path validation and fallback
     if not project_path or project_path.strip() == "":
         project_path = str(working_dir.absolute()) if working_dir else str(Path.cwd().absolute())
@@ -495,24 +513,97 @@ async def claude_subagent(
     logger.info(f"Executing Claude subagent with instruction: {instruction[:100]}...")
 
     try:
-        claude_exec = _import_module_item("cli_subagent", "claude_subagent")
+        # Initialize ClaudeCodeCLI directly
+        claude_cli = ClaudeCodeCLI()
 
-        result = await claude_exec(
+        # Check if Claude Code is available
+        availability = await claude_cli.check_availability()
+        if not availability.get("available", False):
+            error_msg = availability.get("error", "Claude Code CLI not available")
+            logger.error(f"Claude Code unavailable: {error_msg}")
+            return f"❌ Claude Code CLI not available: {error_msg}"
+
+        # Collect all messages from streaming execution with progress reporting
+        messages = []
+        agent_responses = []
+        tool_uses = []
+        message_count = 0
+        logger.info(f"Claude subagent execution started :verbose={config.verbose}")
+
+        async for message in claude_cli.execute_with_streaming(
             instruction=instruction,
             project_path=project_path,
             session_id=session_id,
             model=model,
             images=None,
             is_initial_prompt=is_initial_prompt
-        )
+        ):
+            message_count += 1
+            messages.append(message)
+
+            # Get message type as string
+            msg_type = getattr(message, "message_type", None)
+            msg_type_str = getattr(msg_type, "value", str(msg_type))
+
+            # Get content with fallback
+            content = getattr(message, "content", "")
+            content_preview = str(content)[:100] if content else ""
+
+            # Progress reporting - minimal format as requested
+            logger.debug(f"Claude #{message_count}: {msg_type_str} => {content_preview}")
+            await ctx.report_progress(
+                progress=message_count,
+                total=None,
+                message=f"Claude #{message_count}: {msg_type_str} => {content}"
+            )
+
+            # Categorize messages for summary (same logic as codex_subagent)
+            if hasattr(message, 'role') and message.role == "assistant":
+                if message.content and message.content.strip():
+                    agent_responses.append(message.content.strip())
+            elif msg_type_str == "tool_use":
+                tool_uses.append(message.content)
+            elif msg_type_str == "tool_result":
+                tool_uses.append(f"Tool result: {message.content}")
+            elif msg_type_str == "error":
+                logger.error(f"Claude Code error: {message.content}")
+                return f"❌ Claude Code execution failed: {message.content}"
+            elif msg_type_str == "result":
+                logger.debug(f"Claude Code result: {message.content}, not adding to agent_responses")
+            else:
+                # Capture any other message types that might contain useful content
+                if message.content and str(message.content).strip():
+                    agent_responses.append(str(message.content).strip())
+
+        # Create comprehensive summary (same logic as codex_subagent)
+        summary_parts = []
+
+        if agent_responses:
+            if len(agent_responses) == 1:
+                summary_parts.append(f"**Claude Code Response:**\n{agent_responses[0]}")
+            else:
+                combined_response = "\n\n".join(agent_responses)
+                summary_parts.append(f"**Claude Code Response:**\n{combined_response}")
+
+        if tool_uses:
+            summary_parts.append(f"🔧 **Tools Used ({len(tool_uses)}):**")
+            for tool_use in tool_uses:
+                summary_parts.append(f"• {tool_use}")
+
+        if not summary_parts:
+            summary_parts.append("✅ Claude Code task completed successfully (no detailed output captured)")
+
+        summary = "\n\n".join(summary_parts)
 
         logger.info("Claude subagent execution completed")
-        logger.debug(f"Result summary: {result[:200]}..." if len(result) > 200 else f"Result: {result}")
-        return result
+        logger.debug(f"Result summary: {summary[:200]}..." if len(summary) > 200 else f"Result: {summary}")
+        if config.verbose:
+            return summary
+        return agent_responses[-1] if agent_responses else "✅ Claude Code task completed successfully"
 
     except Exception as e:
         error_msg = f"Error executing Claude subagent: {str(e)}"
-        logger.error(error_msg, exc_info=True)
+        await ctx.error(error_msg, exc_info=True)
         return f"❌ {error_msg}"
 
 
