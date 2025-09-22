@@ -15,6 +15,7 @@ import sys
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Set
+import anyio
 
 from mcp.server.fastmcp import FastMCP, Context
 from pydantic import BaseModel, Field
@@ -38,7 +39,7 @@ def _import_module_item(module_name: str, item_name: str):
         return getattr(module, item_name)
 
 # Import required classes and functions
-CLIAvailabilityChecker = _import_module_item("availability_checker", "CLIAvailabilityChecker")
+
 
 # Configure logging with debug traces
 log_file = Path.cwd() / "roundtable_mcp_server.log"
@@ -51,6 +52,20 @@ logging.basicConfig(
     ]
 )
 logger = logging.getLogger(__name__)
+
+CLIAvailabilityChecker = _import_module_item("availability_checker", "CLIAvailabilityChecker")
+
+# Import CLI adapters directly for MCP streaming with progress
+try:
+    from claudable_helper.cli.adapters.codex_cli import CodexCLI
+    from claudable_helper.cli.adapters.claude_code import ClaudeCodeCLI
+    from claudable_helper.cli.adapters.cursor_agent import CursorAgentCLI
+    from claudable_helper.cli.adapters.gemini_cli import GeminiCLI
+    CLI_ADAPTERS_AVAILABLE = True
+except ImportError as e:
+    logger.warning(f"CLI adapters not available for direct import: {e}")
+    CLI_ADAPTERS_AVAILABLE = False
+
 
 
 class SubagentConfig(BaseModel):
@@ -75,7 +90,10 @@ class ServerConfig(BaseModel):
         default=True,
         description="Enable debug logging"
     )
-
+    verbose: bool = Field(
+        default=False,
+        description="Enable verbose output for subagents, showing tool calls and everystep of the execution. "
+    )
 
 # Parse configuration from environment and availability cache
 def parse_config_from_env() -> ServerConfig:
@@ -93,7 +111,7 @@ def parse_config_from_env() -> ServerConfig:
     config = ServerConfig()
 
     # Check if we should ignore availability cache
-    ignore_availability = os.getenv("CLI_MCP_IGNORE_AVAILABILITY", "false").lower() in ("true", "1", "yes", "on")
+    ignore_availability = os.getenv("CLI_MCP_IGNORE_AVAILABILITY", "true").lower() in ("true", "1", "yes", "on")
 
     # Parse enabled subagents
     subagents_env = os.getenv("CLI_MCP_SUBAGENTS")
@@ -102,7 +120,8 @@ def parse_config_from_env() -> ServerConfig:
         subagents = [s.strip().lower() for s in subagents_env.split(",") if s.strip()]
         valid_subagents = {"codex", "claude", "cursor", "gemini"}
         config.subagents = [s for s in subagents if s in valid_subagents]
-
+        config.verbose = os.getenv("CLI_MCP_VERBOSE", "false").lower() in ("true", "1", "yes", "on")
+        logger.info(f"Verbose: {config.verbose}")
         invalid = set(subagents) - valid_subagents
         if invalid:
             logger.warning(f"Invalid subagent names ignored: {', '.join(invalid)}")
@@ -155,11 +174,13 @@ def initialize_config():
 
     config = parse_config_from_env()
     enabled_subagents = set(config.subagents)
+    verbose = config.verbose
     working_dir = Path(config.working_dir) if config.working_dir else Path.cwd()
 
     logger.info(f"Initializing Roundtable AI MCP Server")
     logger.info(f"Enabled subagents: {', '.join(enabled_subagents)}")
     logger.info(f"Working directory: {working_dir}")
+    logger.info(f"Verbose: {verbose}")
 
 
 # Tool definitions
@@ -288,8 +309,27 @@ async def codex_subagent(
     Returns:
         Summary of what the Codex agent accomplished
     """
+
     if "codex" not in enabled_subagents:
         return "❌ Codex subagent is not enabled in this server instance"
+
+    if not CLI_ADAPTERS_AVAILABLE:
+        # Fallback to old method if CLI adapters not available
+        try:
+            codex_exec = _import_module_item("cli_subagent", "codex_subagent")
+            result = await codex_exec(
+                instruction=instruction,
+                project_path=project_path,
+                session_id=session_id,
+                model=model,
+                images=None,
+                is_initial_prompt=is_initial_prompt
+            )
+            return result
+        except Exception as e:
+            error_msg = f"Error executing Codex subagent: {str(e)}"
+            logger.error(error_msg, exc_info=True)
+            return f"❌ {error_msg}"
 
     # Robust path validation and fallback
     if not project_path or project_path.strip() == "":
@@ -307,26 +347,99 @@ async def codex_subagent(
         return f"❌ {error_msg}"
 
     logger.info(f"Executing Codex subagent with instruction: {instruction[:100]}...")
+    
 
     try:
-        codex_exec = _import_module_item("cli_subagent", "codex_subagent")
+        # Initialize CodexCLI directly
+        codex_cli = CodexCLI()
 
-        result = await codex_exec(
+        # Check if Codex is available
+        availability = await codex_cli.check_availability()
+        if not availability.get("available", False):
+            error_msg = availability.get("error", "Codex CLI not available")
+            logger.error(f"Codex unavailable: {error_msg}")
+            return f"❌ Codex CLI not available: {error_msg}"
+
+        # Collect all messages from streaming execution with progress reporting
+        messages = []
+        agent_responses = []
+        tool_uses = []
+        message_count = 0
+        logger.info(f"Codex subagent execution started :verbose={config.verbose}")
+
+        async for message in codex_cli.execute_with_streaming(
             instruction=instruction,
             project_path=project_path,
             session_id=session_id,
             model=model,
             images=None,
             is_initial_prompt=is_initial_prompt
-        )
+        ):
+            message_count += 1
+            messages.append(message)
+
+            # Get message type as string
+            msg_type = getattr(message, "message_type", None)
+            msg_type_str = getattr(msg_type, "value", str(msg_type))
+
+            # Get content with fallback
+            content = getattr(message, "content", "")
+            content_preview = str(content)[:100] if content else ""
+
+            # Progress reporting - minimal format as requested
+            logger.debug(f"Codex #{message_count}: {msg_type_str} => {content_preview}")
+            await ctx.report_progress(
+                progress=message_count,
+                total=None,
+                message=f"Codex #{message_count}: {msg_type_str} => {content}"
+            )
+
+            # Categorize messages for summary (same logic as cli_subagent.py)
+            if hasattr(message, 'role') and message.role == "assistant":
+                if message.content and message.content.strip():
+                    agent_responses.append(message.content.strip())
+            elif msg_type_str == "tool_use":
+                tool_uses.append(message.content)
+            elif msg_type_str == "tool_result":
+                tool_uses.append(f"Tool result: {message.content}")
+            elif msg_type_str == "error":
+                logger.error(f"Codex error: {message.content}")
+                return f"❌ Codex execution failed: {message.content}"
+            else:
+                # Capture any other message types that might contain useful content
+                if message.content and str(message.content).strip():
+                    agent_responses.append(str(message.content).strip())
+
+        # Create comprehensive summary (same logic as cli_subagent.py)
+        summary_parts = []
+
+        if agent_responses:
+            if len(agent_responses) == 1:
+                summary_parts.append(f"**Codex Response:**\n{agent_responses[0]}")
+            else:
+                combined_response = "\n\n".join(agent_responses)
+                summary_parts.append(f"**Codex Response:**\n{combined_response}")
+
+        if tool_uses:
+            summary_parts.append(f"🔧 **Tools Used ({len(tool_uses)}):**")
+            for tool_use in tool_uses:
+                summary_parts.append(f"• {tool_use}")
+
+        if not summary_parts:
+            summary_parts.append("✅ Codex task completed successfully (no detailed output captured)")
+
+        summary = "\n\n".join(summary_parts)
 
         logger.info("Codex subagent execution completed")
-        logger.debug(f"Result summary: {result[:200]}..." if len(result) > 200 else f"Result: {result}")
-        return result
+        logger.debug(f"Result summary: {summary[:200]}..." if len(summary) > 200 else f"Result: {summary}")
+        if config.verbose:
+            return summary  
+        return agent_responses[-1]
+
 
     except Exception as e:
         error_msg = f"Error executing Codex subagent: {str(e)}"
-        logger.error(error_msg, exc_info=True)
+        await ctx.error(error_msg, exc_info=True)
         return f"❌ {error_msg}"
 
 
@@ -348,12 +461,14 @@ async def claude_subagent(
 
     IMPORTANT: Always provide an absolute path for project_path to ensure proper execution.
     If you don't provide project_path, the current working directory will be used.
+    use sonnet-4 model by default unless the task is very complex and need more powerful model. opus-4.1 costs 10X more than sonnet-4. And sonnet-4 is smart enough to handle most tasks.
+
 
     Args:
         instruction: The coding task or instruction to execute
         project_path: ABSOLUTE path to the project directory (e.g., '/home/user/myproject'). If not provided, uses current working directory.
         session_id: Optional session ID for conversation continuity
-        model: Optional model to use (e.g., 'sonnet-4', 'opus-4.1', 'haiku-3.5')
+        model: Optional model to use (e.g., 'sonnet-4', 'opus-4.1')
         is_initial_prompt: Whether this is the first prompt in a new session
 
     Returns:
@@ -541,6 +656,33 @@ async def gemini_subagent(
         error_msg = f"Error executing Gemini subagent: {str(e)}"
         logger.error(error_msg, exc_info=True)
         return f"❌ {error_msg}"
+
+
+@server.tool()
+async def test_tool(context: Context,signal: bool = True) -> Any:
+    """
+    Test the tool.
+    """
+    #await anyio.sleep(15)
+    #print("15 seconds passed")
+    #await anyio.sleep(18)
+
+    if signal is False:
+        await anyio.sleep(40)
+        return " Tool tested successfully with signal False (No Progress Update)"
+    total_items = 50
+    for i in range(total_items):
+        # Do work
+        await anyio.sleep(1)
+        await context.debug(f"Processing step {i+1} of {total_items}")
+        await context.report_progress(
+                  progress=i + 1,
+                  total=total_items,
+                  message=f"Processing step {i+1} of {total_items}"
+              )
+    
+
+    return "✅ Tool tested successfully"
 
 
 async def run_availability_check():
