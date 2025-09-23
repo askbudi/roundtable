@@ -317,6 +317,7 @@ class CursorAgentCLI(BaseCLI):
         try:
             process = await asyncio.create_subprocess_exec(
                 *cmd,
+                stdin=asyncio.subprocess.DEVNULL,  # Explicitly close stdin
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE,
                 cwd=project_repo_path,
@@ -341,15 +342,35 @@ class CursorAgentCLI(BaseCLI):
                     event_type = event.get("type")
 
                     # Priority: Extract session ID from type: "result" event (most reliable)
-                    if event_type == "result" and not cursor_session_id:
+                    if event_type == "result":
                         print(f"🔍 [Cursor] Result event received: {event}")
-                        session_id_from_result = event.get("session_id")
-                        if session_id_from_result:
-                            cursor_session_id = session_id_from_result
-                            await self.set_session_id(project_id, cursor_session_id)
-                            print(
-                                f"💾 [Cursor] Session ID extracted from result event: {cursor_session_id}"
-                            )
+
+                        # Extract session ID if not already found
+                        if not cursor_session_id:
+                            session_id_from_result = event.get("session_id")
+                            if session_id_from_result:
+                                cursor_session_id = session_id_from_result
+                                await self.set_session_id(project_id, cursor_session_id)
+                                print(
+                                    f"💾 [Cursor] Session ID extracted from result event: {cursor_session_id}"
+                                )
+
+                        # Emit result message for MCP server
+                        result_text = event.get("result", "")
+                        yield Message(
+                            id=str(uuid.uuid4()),
+                            project_id=project_path,
+                            role="assistant",
+                            message_type="result",
+                            content=result_text,
+                            metadata_json={
+                                "cli_type": "cursor",
+                                "event_type": "result",
+                                "session_id": cursor_session_id,
+                            },
+                            session_id=session_id,
+                            created_at=datetime.utcnow(),
+                        )
 
                         # Mark that we received result event
                         result_received = True

@@ -656,25 +656,129 @@ async def cursor_subagent(
 
     logger.info(f"Executing Cursor subagent with instruction: {instruction[:100]}...")
 
+    # Prefer streaming via adapter (to emit MCP progress), with safe fallback
     try:
-        cursor_exec = _import_module_item("cli_subagent", "cursor_subagent")
+        # Try to import adapter class via relative import (works in-package)
+        try:
+            CursorCLIClass = _import_module_item(
+                "claudable_helper.cli.adapters.cursor_agent", "CursorAgentCLI"
+            )
+            cursor_cli = CursorCLIClass()
+            use_adapter = True
+        except Exception as imp_err:
+            logger.debug(f"Cursor adapter import failed, falling back: {imp_err}")
+            use_adapter = False
 
-        result = await cursor_exec(
+        if not use_adapter:
+            # Fallback to legacy tool wrapper (no streaming)
+            cursor_exec = _import_module_item("cli_subagent", "cursor_subagent")
+            result = await cursor_exec(
+                instruction=instruction,
+                project_path=project_path,
+                session_id=session_id,
+                model=model,
+                images=None,
+                is_initial_prompt=is_initial_prompt,
+            )
+            logger.info("Cursor subagent execution completed (fallback mode)")
+            logger.debug(
+                f"Result summary: {result[:200]}..." if len(result) > 200 else f"Result: {result}"
+            )
+            return result
+
+        # Adapter path with streaming and progress reporting
+        availability = await cursor_cli.check_availability()
+        if not availability.get("available", False):
+            error_msg = availability.get("error", "Cursor Agent CLI not available")
+            logger.error(f"Cursor Agent unavailable: {error_msg}")
+            return f"❌ Cursor Agent CLI not available: {error_msg}"
+
+        messages: List[Any] = []
+        agent_responses: List[str] = []
+        tool_uses: List[str] = []
+        message_count = 0
+        logger.info(f"Cursor subagent execution started :verbose={config.verbose}")
+
+        async for message in cursor_cli.execute_with_streaming(
             instruction=instruction,
             project_path=project_path,
             session_id=session_id,
             model=model,
             images=None,
-            is_initial_prompt=is_initial_prompt
-        )
+            is_initial_prompt=is_initial_prompt,
+        ):
+            message_count += 1
+            messages.append(message)
+
+            # Normalize type and content
+            msg_type = getattr(message, "message_type", None)
+            msg_type_str = getattr(msg_type, "value", str(msg_type))
+            content = getattr(message, "content", "")
+            content_preview = str(content)[:100] if content else ""
+
+            # Emit MCP progress with error handling
+            logger.debug(f"Cursor #{message_count}: {msg_type_str} => {content_preview}")
+            try:
+                await ctx.report_progress(
+                    progress=message_count,
+                    total=None,
+                    message=f"Cursor #{message_count}: {msg_type_str} => {content}",
+                )
+            except Exception as e:
+                logger.debug(f"Progress reporting failed (non-critical): {e}")
+
+            # Accumulate for summary
+            if hasattr(message, "role") and message.role == "assistant":
+                if content and str(content).strip():
+                    agent_responses.append(str(content).strip())
+            elif msg_type_str == "tool_use":
+                tool_uses.append(content)
+            elif msg_type_str == "tool_result":
+                tool_uses.append(f"Tool result: {content}")
+            elif msg_type_str == "error":
+                logger.error(f"Cursor Agent error: {content}")
+                return f"❌ Cursor Agent execution failed: {content}"
+            elif msg_type_str == "result":
+                logger.debug(f"Cursor final result received: {content[:100]}...")
+                # Store the result content for the final response
+                if content and str(content).strip():
+                    agent_responses.append(str(content).strip())
+                # Break the loop as cursor execution is complete
+                logger.info("Cursor result received, ending stream")
+                break
+            else:
+                if content and str(content).strip():
+                    agent_responses.append(str(content).strip())
+
+        # Build summary
+        summary_parts: List[str] = []
+        if agent_responses:
+            if len(agent_responses) == 1:
+                summary_parts.append(f"**Cursor Agent Response:**\n{agent_responses[0]}")
+            else:
+                combined = "\n\n".join(agent_responses)
+                summary_parts.append(f"**Cursor Agent Response:**\n{combined}")
+        if tool_uses:
+            summary_parts.append(f"🔧 **Tools Used ({len(tool_uses)}):**")
+            for t in tool_uses:
+                summary_parts.append(f"• {t}")
+        if not summary_parts:
+            summary_parts.append(
+                "✅ Cursor Agent task completed successfully (no detailed output captured)"
+            )
+        summary = "\n\n".join(summary_parts)
 
         logger.info("Cursor subagent execution completed")
-        logger.debug(f"Result summary: {result[:200]}..." if len(result) > 200 else f"Result: {result}")
-        return result
+        logger.debug(
+            f"Result summary: {summary[:200]}..." if len(summary) > 200 else f"Result: {summary}"
+        )
+        if config.verbose:
+            return summary
+        return agent_responses[-1] if agent_responses else summary
 
     except Exception as e:
         error_msg = f"Error executing Cursor subagent: {str(e)}"
-        logger.error(error_msg, exc_info=True)
+        await ctx.error(error_msg, exc_info=True)
         return f"❌ {error_msg}"
 
 
