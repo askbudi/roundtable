@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "roundtable-ai"
-version = "0.4.0"
+version = "0.5.0"
 description = "Zero-configuration MCP server that unifies multiple AI coding assistants (Codex, Claude Code, Cursor, Gemini) through intelligent auto-discovery and standardized interface"
 authors = [{name = "Roundtable AI", email = "support@askbudi.ai"}]
 readme = "README.md"
