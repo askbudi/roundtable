@@ -348,6 +348,7 @@ async def codex_subagent(
         return f"❌ {error_msg}"
 
     logger.info(f"Executing Codex subagent with instruction: {instruction[:100]}...")
+    logger.debug(f"[MCP-TOOL] codex_subagent started - project_path: {project_path}, model: {model}, session_id: {session_id}")
     
 
     try:
@@ -367,6 +368,7 @@ async def codex_subagent(
         tool_uses = []
         message_count = 0
         logger.info(f"Codex subagent execution started :verbose={config.verbose}")
+        logger.debug(f"[MCP-TOOL] Codex CLI streaming started - will process messages and report progress")
 
         async for message in codex_cli.execute_with_streaming(
             instruction=instruction,
@@ -387,12 +389,13 @@ async def codex_subagent(
             content = getattr(message, "content", "")
             content_preview = str(content)[:100] if content else ""
 
-            # Progress reporting - minimal format as requested
-            logger.debug(f"Codex #{message_count}: {msg_type_str} => {content_preview}")
+            # Progress reporting with debug logging
+            progress_message = f"Codex #{message_count}: {msg_type_str} => {content}"
+            logger.debug(f"[PROGRESS] {progress_message}")
             await ctx.report_progress(
                 progress=message_count,
                 total=None,
-                message=f"Codex #{message_count}: {msg_type_str} => {content}"
+                message=progress_message
             )
 
             # Categorize messages for summary (same logic as cli_subagent.py)
@@ -432,6 +435,7 @@ async def codex_subagent(
         summary = "\n\n".join(summary_parts)
 
         logger.info("Codex subagent execution completed")
+        logger.debug(f"[MCP-TOOL] Codex execution completed - total messages: {message_count}, agent_responses: {len(agent_responses)}, tool_uses: {len(tool_uses)}")
         logger.debug(f"Result summary: {summary[:200]}..." if len(summary) > 200 else f"Result: {summary}")
         if config.verbose:
             return summary  
@@ -512,6 +516,7 @@ async def claude_subagent(
         return f"❌ {error_msg}"
 
     logger.info(f"Executing Claude subagent with instruction: {instruction[:100]}...")
+    logger.debug(f"[MCP-TOOL] claude_subagent started - project_path: {project_path}, model: {model}, session_id: {session_id}")
 
     try:
         # Initialize ClaudeCodeCLI directly
@@ -530,6 +535,7 @@ async def claude_subagent(
         tool_uses = []
         message_count = 0
         logger.info(f"Claude subagent execution started :verbose={config.verbose}")
+        logger.debug(f"[MCP-TOOL] Claude CLI streaming started - will process messages and report progress")
 
         async for message in claude_cli.execute_with_streaming(
             instruction=instruction,
@@ -550,12 +556,13 @@ async def claude_subagent(
             content = getattr(message, "content", "")
             content_preview = str(content)[:100] if content else ""
 
-            # Progress reporting - minimal format as requested
-            logger.debug(f"Claude #{message_count}: {msg_type_str} => {content_preview}")
+            # Progress reporting with debug logging
+            progress_message = f"Claude #{message_count}: {msg_type_str} => {content}"
+            logger.debug(f"[PROGRESS] {progress_message}")
             await ctx.report_progress(
                 progress=message_count,
                 total=None,
-                message=f"Claude #{message_count}: {msg_type_str} => {content}"
+                message=progress_message
             )
 
             # Categorize messages for summary (same logic as codex_subagent)
@@ -597,6 +604,7 @@ async def claude_subagent(
         summary = "\n\n".join(summary_parts)
 
         logger.info("Claude subagent execution completed")
+        logger.debug(f"[MCP-TOOL] Claude execution completed - total messages: {message_count}, agent_responses: {len(agent_responses)}, tool_uses: {len(tool_uses)}")
         logger.debug(f"Result summary: {summary[:200]}..." if len(summary) > 200 else f"Result: {summary}")
         if config.verbose:
             return summary
@@ -656,6 +664,7 @@ async def cursor_subagent(
         return f"❌ {error_msg}"
 
     logger.info(f"Executing Cursor subagent with instruction: {instruction[:100]}...")
+    logger.debug(f"[MCP-TOOL] cursor_subagent started - project_path: {project_path}, model: {model}, session_id: {session_id}")
 
     # Prefer streaming via adapter (to emit MCP progress), with safe fallback
     try:
@@ -699,6 +708,7 @@ async def cursor_subagent(
         tool_uses: List[str] = []
         message_count = 0
         logger.info(f"Cursor subagent execution started :verbose={config.verbose}")
+        logger.debug(f"[MCP-TOOL] Cursor CLI streaming started - will process messages and report progress")
 
         async for message in cursor_cli.execute_with_streaming(
             instruction=instruction,
@@ -717,13 +727,14 @@ async def cursor_subagent(
             content = getattr(message, "content", "")
             content_preview = str(content)[:100] if content else ""
 
-            # Emit MCP progress with error handling
-            logger.debug(f"Cursor #{message_count}: {msg_type_str} => {content_preview}")
+            # Progress reporting with debug logging
+            progress_message = f"Cursor #{message_count}: {msg_type_str} => {content}"
+            logger.debug(f"[PROGRESS] {progress_message}")
             try:
                 await ctx.report_progress(
                     progress=message_count,
                     total=None,
-                    message=f"Cursor #{message_count}: {msg_type_str} => {content}",
+                    message=progress_message,
                 )
             except Exception as e:
                 logger.debug(f"Progress reporting failed (non-critical): {e}")
@@ -770,6 +781,7 @@ async def cursor_subagent(
         summary = "\n\n".join(summary_parts)
 
         logger.info("Cursor subagent execution completed")
+        logger.debug(f"[MCP-TOOL] Cursor execution completed - total messages: {message_count}, agent_responses: {len(agent_responses)}, tool_uses: {len(tool_uses)}")
         logger.debug(
             f"Result summary: {summary[:200]}..." if len(summary) > 200 else f"Result: {summary}"
         )
@@ -849,6 +861,7 @@ async def gemini_subagent(
         return f"❌ {error_msg}"
 
     logger.info(f"Executing Gemini subagent with instruction: {instruction[:100]}...")
+    logger.debug(f"[MCP-TOOL] gemini_subagent started - project_path: {project_path}, model: {model}, session_id: {session_id}")
 
     try:
         # Initialize GeminiCLI directly
@@ -867,6 +880,7 @@ async def gemini_subagent(
         tool_uses = []
         message_count = 0
         logger.info(f"Gemini subagent execution started :verbose={config.verbose}")
+        logger.debug(f"[MCP-TOOL] Gemini CLI streaming started - will process messages and report progress")
 
         async for message in gemini_cli.execute_with_streaming(
             instruction=instruction,
@@ -887,12 +901,13 @@ async def gemini_subagent(
             content = getattr(message, "content", "")
             content_preview = str(content)[:100] if content else ""
 
-            # Progress reporting - minimal format as requested
-            logger.debug(f"Gemini #{message_count}: {msg_type_str} => {content_preview}")
+            # Progress reporting with debug logging
+            progress_message = f"Gemini #{message_count}: {msg_type_str} => {content}"
+            logger.debug(f"[PROGRESS] {progress_message}")
             await ctx.report_progress(
                 progress=message_count,
                 total=None,
-                message=f"Gemini #{message_count}: {msg_type_str} => {content}"
+                message=progress_message
             )
 
             # Categorize messages for summary (same logic as codex_subagent)
@@ -934,6 +949,7 @@ async def gemini_subagent(
         summary = "\n\n".join(summary_parts)
 
         logger.info("Gemini subagent execution completed")
+        logger.debug(f"[MCP-TOOL] Gemini execution completed - total messages: {message_count}, agent_responses: {len(agent_responses)}, tool_uses: {len(tool_uses)}")
         logger.debug(f"Result summary: {summary[:200]}..." if len(summary) > 200 else f"Result: {summary}")
         if config.verbose:
             return summary
@@ -961,11 +977,13 @@ async def test_tool(context: Context,signal: bool = True) -> Any:
     for i in range(total_items):
         # Do work
         await anyio.sleep(1)
-        await context.debug(f"Processing step {i+1} of {total_items}")
+        progress_message = f"Processing step {i+1} of {total_items}"
+        logger.debug(f"[PROGRESS] {progress_message}")
+        await context.debug(progress_message)
         await context.report_progress(
                   progress=i + 1,
                   total=total_items,
-                  message=f"Processing step {i+1} of {total_items}"
+                  message=progress_message
               )
     
 
