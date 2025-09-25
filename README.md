@@ -1,164 +1,265 @@
 # Roundtable AI MCP Server
 
-**Connect to Multiple AI Coding Tools at Once** - Use Codex, Claude, Cursor, and Gemini from one simple interface.
+[![PyPI version](https://badge.fury.io/py/roundtable-ai.svg)](https://badge.fury.io/py/roundtable-ai)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
 
-## What You Get
+Stop copy-pasting between AI models. Roundtable AI is a local MCP server that lets your primary AI assistant delegate tasks to specialized models like Gemini, Claude, Codex, and Cursor. Solve complex engineering problems in parallel, directly from your IDE.
 
-🚀 **Quick Setup** - Install once, use everywhere
+**Key Features:**
+- **Context Continuity**: Shared project context across all sub-agents
+- **Parallel Execution**: All agents work simultaneously
+- **Model Specialization**: Right AI for each task (Gemini's 1M context, Claude's reasoning, Codex's implementation)
+- **Zero Markup**: Uses your existing CLI tools and API subscriptions
+- **26+ IDE Support**: Works with Claude Code, Cursor, VS Code, JetBrains, and more
 
-🔧 **Works Out of the Box** - Finds and sets up your AI tools automatically. No config files to edit.
+## Table of Contents
 
-🔗 **Same Commands for Everything** - Switch between AI tools without learning different commands
-
-📦 **Works with Popular Editors** - Use it in VS Code, Claude Desktop, Cursor, and 20+ other coding tools
-
-🛡️ **Only Shows Working Tools** - Remembers which AI tools you have installed and only shows the ones that actually work
-
-## Why You Need This
-
-### 1. **Stop Wrestling with Multiple AI Tools**
-**The Problem**: Each AI tool (Codex, Claude, Gemini) has different commands, setup steps, and ways to log in. This wastes time switching between them.
-
-**Our Solution**: Roundtable finds your AI tools and lets you use them all the same way. One command, all your AI tools.
-
-### 2. **Use Any AI Tool the Same Way**
-**The Problem**: Each AI tool needs different integration code and handles errors differently.
-
-**Our Solution**: All AI tools work exactly the same through Roundtable. Switch tools without changing your code.
-
-### 3. **Know Which Tools Actually Work**
-**The Problem**: You waste time trying to use AI tools that aren't installed or configured properly.
-
-**Our Solution**: Roundtable remembers which AI tools work on your system and only shows you the ones that are actually installed.
+- [Quick Start](#quick-start)
+- [What is Roundtable AI](#what-is-roundtable-ai)
+- [Technical Architecture](#technical-architecture)
+- [Why Multi-Agent vs Single AI](#why-multi-agent-vs-single-ai)
+- [Real-World Examples](#real-world-examples)
+- [Installation](#installation)
+- [IDE Integration](#ide-integration)
+- [Advanced Configuration](#advanced-configuration)
+- [Contributing](#contributing)
+- [License](#license)
 
 ## Quick Start
 
 ```bash
-# Install once, access all AI assistants
+# Install Roundtable AI
 pip install roundtable-ai
 
-# Check which AI tools are available
+# Check available AI tools
 roundtable-ai --check
 
-# Start unified AI assistant interface
+# Start with all available tools
 roundtable-ai
 
 # Use specific assistants only
-roundtable-ai --agents codex,gemini
-```
-
-## Supported AI Assistants
-
-- **Codex** - Advanced code generation and assistance
-- **Claude Code** - Anthropic's Claude with enhanced code capabilities
-- **Cursor** - AI-powered code editor integration
-- **Gemini** - Google's Gemini AI assistant
-
-*Only assistants that are actually installed and configured will be enabled automatically.*
-
-## Zero-Configuration Intelligence
-
-### Automatic Discovery
-- Runs `--help` commands to verify CLI tool availability
-- Smart caching saves availability results to avoid repeated checks
-- Environment-aware adaptation to different development environments
-
-### Priority-Based Configuration
-1. **Command line flags** (`--agents codex,gemini`) - Highest priority
-2. **Environment variables** (`CLI_MCP_SUBAGENTS`)
-3. **Availability cache** (`~/.roundtable/availability_check.json`)
-4. **Defaults** (all available tools) - Lowest priority
-
-## Installation & Usage
-
-### Multiple Installation Options
-```bash
-# Primary installation method
-pip install roundtable-ai
-
-# Multiple command aliases (all equivalent)
-roundtable-ai                    # Short and convenient
-roundtable-mcp-server           # Descriptive
-python -m roundtable_mcp_server # Module execution
-```
-
-### Check Available AI Tools
-```bash
-roundtable-ai --check
-```
-This command:
-- Tests each CLI tool by running `--help` commands
-- Saves results to `~/.roundtable/availability_check.json`
-- Shows detailed availability report
-
-### Start the Unified Interface
-```bash
-# Use all available AI assistants
-roundtable-ai
-
-# Use only specific assistants
 roundtable-ai --agents codex,claude
-
-# Override availability detection
-CLI_MCP_IGNORE_AVAILABILITY=true roundtable-ai
 ```
 
-## MCP Client Integration
+**One-liner for Claude Code:**
+```bash
+claude mcp add roundtable-ai -- roundtable-ai --agents gemini,claude,codex,cursor
+```
 
-### Claude Desktop Configuration
-Add to your `~/.config/claude_desktop_config.json`:
+**Try this multi-agent prompt in your IDE:**
+```markdown
+The user dashboard is randomly slow for enterprise customers.
 
+Use Gemini SubAgent to analyze frontend performance issues in the React components, especially expensive re-renders and inefficient data fetching.
+
+Use Codex SubAgent to examine the backend API endpoint for N+1 queries and database bottlenecks.
+
+Use Claude SubAgent to review the infrastructure logs and identify memory/CPU pressure during peak hours.
+```
+
+## What is Roundtable AI
+
+Roundtable AI is a local Model Context Protocol (MCP) server that coordinates specialized AI sub-agents to solve complex engineering problems. Instead of manually switching between different AI tools, you delegate tasks from a single prompt in your IDE, and Roundtable manages the coordination, context sharing, and response synthesis.
+
+### Key Benefits
+
+- **Context Continuity**: The primary agent provides shared, rich context to all sub-agents
+- **Parallel Execution**: All agents work simultaneously, drastically reducing wait time
+- **Model Specialization**: Use the right AI for each task - Gemini's 1M context for analysis, Claude's reasoning for logic, Codex for implementation
+- **No Extra Cost**: Uses your existing CLI tools and API subscriptions with zero markup
+- **Single Interface**: One prompt, multiple specialized responses, automatically synthesized
+
+## Technical Architecture
+
+```text
+    +----------------------------------+
+    | Your IDE (VS Code, Cursor, etc.) |
+    | (Primary AI Assistant)           |
+    +----------------+-----------------+
+                     |
+    (1. User prompt with subagent delegation)
+                     |
+    +----------------v-----------------+
+    |      Roundtable MCP Server       |
+    |         (localhost)              |
+    +----------------+-----------------+
+                     |
+    (2. Dispatches tasks to sub-agent CLIs in parallel)
+                     |
++--------------------v--------------------+
+|                                         |
+|  +-----------+   +-----------+   +-----------+  |
+|  |  Gemini   |   |  Claude   |   |   Codex   |  |
+|  | (Analysis)|   |  (Logic)  |   | (Implement)| |
+|  +-----------+   +-----------+   +-----------+  |
+|                                         |
++--------------------^--------------------+
+                     |
+    (3. Sub-agents execute using local tools,
+        e.g., read_file, run_shell_command)
+                     |
+    +----------------+-----------------+
+    |      Roundtable MCP Server       |
+    | (Aggregates & Synthesizes)       |
+    +----------------+-----------------+
+                     |
+(4. Returns a single, synthesized response)
+                     |
+    +----------------v-----------------+
+    | Your IDE (Primary AI Assistant)  |
+    +----------------------------------+
+```
+
+### How It Works
+
+1. **Context Continuity**: The initial prompt and relevant file/project context are packaged by the primary agent. The MCP server passes this "context bundle" to each sub-agent, ensuring all participants have the same ground truth without manual copy-pasting.
+
+2. **Model Specialization**: Use the right model for the job. Leverage Gemini's 1M context for codebase analysis, Claude's reasoning for logic and implementation, and Codex's proficiency for code generation and reviews, all in one workflow.
+
+3. **No Extra Cost**: Roundtable invokes the CLI tools you already have installed and configured. It uses your existing API keys and subscriptions. We add no markup. The cost is exactly what you would pay running the tools manually.
+
+## Why Multi-Agent vs Single AI
+
+Because manual context-switching is slow, error-prone, and prevents deep analysis.
+
+### The Multi-Tab Workflow ❌
+
+- Manually copy-paste code and context between different AI chats
+- Each agent starts fresh, unaware of other conversations or files
+- You wait for one agent to finish before starting the next
+- You are responsible for merging disparate, often conflicting, advice
+- High risk of pasting outdated code or incorrect context
+
+### The Roundtable Workflow ✅
+
+- Delegate tasks from a single prompt in your IDE
+- The primary agent provides shared, rich context to all sub-agents
+- All agents work in parallel, drastically reducing wait time
+- The final output automatically synthesizes the best insights from each model
+- The entire workflow is a single, deterministic, and repeatable command
+
+## Real-World Examples
+
+Each example includes real code, logs, and explicit delegation to specialized sub-agents. Copy the whole block and paste it into your IDE assistant.
+
+1) Multi-Stack Debugging — Virtual War Room for Production Issues
+
+```markdown
+I'm debugging a critical production issue. The user sees a "Failed to load data" message.
+
+Here is the browser console output:
+```json
+{
+  "timestamp": "2024-09-24T10:05:21.123Z",
+  "level": "error",
+  "message": "API request failed for /api/v1/user/profile",
+  "error": {
+    "status": 500,
+    "statusText": "Internal Server Error"
+  }
+}
+```
+
+Here is the backend server log:
+```
+ERROR: Exception in ASGI application
+File "/app/services/user_service.py", line 42, in get_user_profile
+  user_data = await db.fetch_one(query)
+ValueError: Database connection is not available
+```
+
+Use Gemini SubAgent to analyze the logs from both stacks, correlate the events, and form a hypothesis about the root cause.
+Use Codex SubAgent to analyze the Python backend traceback and suggest a specific code fix for the database connection error.
+Use Claude SubAgent to review the frontend error handling and recommend more resilient patterns.
+Use Cursor SubAgent to search the codebase for other files that might have similar database connection issues.
+
+At the end, aggregate all findings into a single incident report with root cause analysis and prioritized fixes.
+```
+
+2) Performance Optimization — API Latency & Database Query Tuning
+
+```markdown
+Our checkout API p95 latency increased from 220ms to 780ms. Need optimization strategy.
+
+PostgreSQL slow query log:
+```sql
+-- Duration: 2455.112 ms
+SELECT c.name, COUNT(o.id) AS total_orders, SUM(p.amount) AS revenue
+FROM companies c, orders o, payments p
+WHERE c.id = o.company_id
+  AND o.id = p.order_id
+  AND c.region = 'North America'
+GROUP BY c.name
+ORDER BY revenue DESC;
+```
+
+EXPLAIN ANALYZE shows:
+```
+Seq Scan on orders (cost=0.00..52000.00 rows=100000)
+  Filter: (status = 'completed')
+  Rows Removed by Filter: 134,201
+```
+
+Node.js hotspot from profiling:
+```javascript
+// 40% CPU time
+orders.map(o => ({ ...o, json: JSON.stringify(o) }));
+
+// N+1 query problem
+for (const id of orderIds) {
+  await fetchInventory(id);
+}
+```
+
+Use Claude SubAgent to analyze the EXPLAIN plan and identify why the query is slow.
+Use Codex SubAgent to rewrite the SQL with proper JOINs and suggest indexes.
+Use Gemini SubAgent to fix the N+1 query problem with batch fetching.
+Use Cursor SubAgent to find all instances of JSON.stringify in hot code paths.
+
+Aggregate findings into a performance optimization plan with measurable improvements.
+```
+
+## Installation
+
+### Using pip (Standard)
+
+```bash
+pip install roundtable-ai
+```
+
+### Using UV/UVX (Recommended for faster installs)
+
+```bash
+uvx roundtable-ai@latest
+```
+
+## IDE Integration
+
+Roundtable AI supports 26+ MCP-compatible clients. Here are the top 7:
+
+### 1. Claude Code
+
+**Using pip:**
+```bash
+claude mcp add roundtable-ai -- roundtable-ai --agents gemini,claude,codex,cursor
+```
+
+**Using UVX:**
+```bash
+claude mcp add roundtable-ai -- uvx roundtable-ai@latest --agents gemini,claude,codex,cursor
+```
+
+### 2. Cursor
+
+**File:** `.cursor/mcp.json`
+
+**Using pip:**
 ```json
 {
   "mcpServers": {
     "roundtable-ai": {
       "command": "roundtable-ai",
-      "env": {
-        "CLI_MCP_SUBAGENTS": "codex,claude,cursor,gemini",
-        "CLI_MCP_WORKING_DIR": "/path/to/your/project"
-      }
-    }
-  }
-}
-```
-
-### Universal MCP Compatibility
-Works with any MCP-compatible client including:
-- Claude Desktop
-- VS Code with MCP extensions
-- Custom MCP applications
-- Future MCP-compatible tools
-
-## IDE & Editor Integration
-
-Roundtable AI MCP Server integrates with **26 different IDEs and AI coding tools**. Below are the installation guides for each platform.
-
-### 🎯 Primary IDEs (Most Popular)
-
-#### 1. **Cursor** - AI-First Code Editor
-Create or edit `.cursor/mcp.json` in your project root:
-
-```json
-{
-  "mcpServers": {
-    "roundtable-ai": {
-      "command": "roundtable-ai",
-      "env": {
-        "CLI_MCP_SUBAGENTS": "codex,claude,cursor,gemini",
-        "CLI_MCP_WORKING_DIR": "/path/to/your/project"
-      }
-    }
-  }
-}
-```
-
-**Alternative using npx:**
-```json
-{
-  "mcpServers": {
-    "roundtable-ai": {
-      "command": "npx",
-      "args": ["-y", "@roundtable/mcp-server"],
       "env": {
         "CLI_MCP_SUBAGENTS": "codex,claude,cursor,gemini"
       }
@@ -167,74 +268,198 @@ Create or edit `.cursor/mcp.json` in your project root:
 }
 ```
 
-#### 2. **Claude Code** - Anthropic's Official CLI
-Use Claude Code's built-in MCP management:
-
-```bash
-# Quick installation
-claude mcp add roundtable-ai roundtable-ai
-
-# With specific working directory
-claude mcp add roundtable-ai roundtable-ai --env CLI_MCP_WORKING_DIR=/path/to/project
-
-# Verify installation
-claude mcp list
-
-# Remove if needed
-claude mcp remove roundtable-ai
-```
-
-**Manual Configuration** (`~/.config/claude_desktop_config.json`):
+**Using UVX:**
 ```json
 {
   "mcpServers": {
     "roundtable-ai": {
-      "command": "roundtable-ai",
+      "type": "stdio",
+      "command": "uvx",
+      "args": [
+        "roundtable-ai@latest"
+      ],
       "env": {
-        "CLI_MCP_SUBAGENTS": "codex,claude,cursor,gemini",
-        "CLI_MCP_WORKING_DIR": "/path/to/your/project"
+        "CLI_MCP_SUBAGENTS": "codex,claude,cursor,gemini"
       }
     }
   }
 }
 ```
 
-#### 3. **Windsurf** - AI-Powered Development Environment
-Edit `~/.codeium/windsurf/mcp_config.json`:
+### 3. Claude Desktop
 
+**File:** `~/.config/claude_desktop_config.json`
+
+**Using pip:**
 ```json
 {
   "mcpServers": {
     "roundtable-ai": {
       "command": "roundtable-ai",
       "env": {
-        "CLI_MCP_SUBAGENTS": "codex,claude,cursor,gemini",
-        "CLI_MCP_WORKING_DIR": "/path/to/your/project"
+        "CLI_MCP_SUBAGENTS": "codex,claude,cursor,gemini"
       }
     }
   }
 }
 ```
 
-#### 4. **VS Code** - Microsoft's Editor
-Add to your `settings.json` (Ctrl/Cmd + Shift + P → "Open Settings JSON"):
+**Using UVX:**
+```json
+{
+  "mcpServers": {
+    "roundtable-ai": {
+      "command": "uvx",
+      "args": ["roundtable-ai@latest"],
+      "env": {
+        "CLI_MCP_SUBAGENTS": "codex,claude,cursor,gemini"
+      }
+    }
+  }
+}
+```
 
+### 4. VS Code
+
+**Add to `settings.json`:**
+
+**Using pip:**
 ```json
 {
   "mcp.servers": {
     "roundtable-ai": {
       "command": "roundtable-ai",
       "env": {
-        "CLI_MCP_SUBAGENTS": "codex,claude,cursor,gemini",
-        "CLI_MCP_WORKING_DIR": "/path/to/your/project"
+        "CLI_MCP_SUBAGENTS": "codex,claude,cursor,gemini"
       }
     }
   }
 }
 ```
 
-#### 5. **GitHub Copilot** - GitHub's AI Coding Assistant
-Add to your GitHub Copilot settings or workspace configuration:
+**Using UVX:**
+```json
+{
+  "mcp.servers": {
+    "roundtable-ai": {
+      "command": "uvx",
+      "args": ["roundtable-ai@latest"],
+      "env": {
+        "CLI_MCP_SUBAGENTS": "codex,claude,cursor,gemini"
+      }
+    }
+  }
+}
+```
+
+### 5. OpenAI Codex
+
+**File:** `~/.codex/config.toml`
+
+**Using pip:**
+```toml
+# IMPORTANT: the top-level key is 'mcp_servers' rather than 'mcpServers'.
+[mcp_servers.roundtable-ai]
+command = "roundtable-ai"
+args = []
+env = { "CLI_MCP_SUBAGENTS" = "codex,claude,cursor,gemini" }
+```
+
+**Using UVX:**
+```toml
+# IMPORTANT: the top-level key is 'mcp_servers' rather than 'mcpServers'.
+[mcp_servers.roundtable-ai]
+command = "uvx"
+args = ["roundtable-ai@latest"]
+env = { "CLI_MCP_SUBAGENTS" = "codex,claude,cursor,gemini" }
+```
+
+### 6. Windsurf
+
+**File:** `~/.codeium/windsurf/mcp_config.json`
+
+**Using pip:**
+```json
+{
+  "mcpServers": {
+    "roundtable-ai": {
+      "command": "roundtable-ai",
+      "env": {
+        "CLI_MCP_SUBAGENTS": "codex,claude,cursor,gemini"
+      }
+    }
+  }
+}
+```
+
+**Using UVX:**
+```json
+{
+  "mcpServers": {
+    "roundtable-ai": {
+      "command": "uvx",
+      "args": ["roundtable-ai@latest"],
+      "env": {
+        "CLI_MCP_SUBAGENTS": "codex,claude,cursor,gemini"
+      }
+    }
+  }
+}
+```
+
+### 7. Gemini CLI
+
+**File:** `~/.gemini/settings.json`
+
+**Using pip:**
+```json
+{
+  "mcpServers": {
+    "roundtable-ai": {
+      "command": "roundtable-ai",
+      "env": {
+        "CLI_MCP_SUBAGENTS": "codex,claude,cursor,gemini"
+      }
+    }
+  }
+}
+```
+
+**Using UVX:**
+```json
+{
+  "mcpServers": {
+    "roundtable-ai": {
+      "command": "uvx",
+      "args": ["roundtable-ai@latest"],
+      "env": {
+        "CLI_MCP_SUBAGENTS": "codex,claude,cursor,gemini"
+      }
+    }
+  }
+}
+```
+
+### Additional IDE Support
+
+Roundtable AI integrates with **26+ different IDEs and AI coding tools**:
+
+#### JetBrains IDEs (IntelliJ, PyCharm, WebStorm, etc.)
+
+**Settings Path**: `Settings > Tools > AI Assistant > Model Context Protocol (MCP)`
+
+```json
+{
+  "name": "roundtable-ai",
+  "command": "roundtable-ai",
+  "transport": "stdio",
+  "env": {
+    "CLI_MCP_SUBAGENTS": "codex,claude,cursor,gemini"
+  }
+}
+```
+
+#### GitHub Copilot
 
 ```json
 {
@@ -266,7 +491,6 @@ Add to your GitHub Copilot settings or workspace configuration:
      "transport": "stdio",
      "env": {
        "CLI_MCP_SUBAGENTS": "codex,claude,cursor,gemini",
-       "CLI_MCP_WORKING_DIR": "/path/to/your/project"
      }
    }
    ```
@@ -285,8 +509,7 @@ Create `mcp_config.json` in your project root:
       "command": "roundtable-ai",
       "transport": "stdio",
       "env": {
-        "CLI_MCP_SUBAGENTS": "codex,claude,cursor,gemini",
-        "CLI_MCP_WORKING_DIR": "/path/to/your/project"
+        "CLI_MCP_SUBAGENTS": "codex,claude,cursor,gemini"
       }
     }
   }
@@ -307,8 +530,7 @@ Add to `settings.json` (Cmd/Ctrl + ,):
     "roundtable-ai": {
       "command": "roundtable-ai",
       "env": {
-        "CLI_MCP_SUBAGENTS": "codex,claude,cursor,gemini",
-        "CLI_MCP_WORKING_DIR": "/path/to/your/project"
+        "CLI_MCP_SUBAGENTS": "codex,claude,cursor,gemini"
       }
     }
   }
@@ -333,8 +555,7 @@ Edit `~/.gemini/settings.json`:
     "roundtable-ai": {
       "command": "roundtable-ai",
       "env": {
-        "CLI_MCP_SUBAGENTS": "codex,claude,cursor,gemini",
-        "CLI_MCP_WORKING_DIR": "/path/to/your/project"
+        "CLI_MCP_SUBAGENTS": "codex,claude,cursor,gemini"
       }
     }
   }
@@ -381,8 +602,7 @@ Edit configuration in `~/.aws/q-developer/config.json`:
     "roundtable-ai": {
       "command": "roundtable-ai",
       "env": {
-        "CLI_MCP_SUBAGENTS": "codex,claude,cursor,gemini",
-        "CLI_MCP_WORKING_DIR": "/path/to/your/project"
+        "CLI_MCP_SUBAGENTS": "codex,claude,cursor,gemini"
       }
     }
   }
@@ -402,8 +622,7 @@ Create or edit `crush.json` in your project:
       "command": "roundtable-ai",
       "transport": "stdio",
       "env": {
-        "CLI_MCP_SUBAGENTS": "codex,claude,cursor,gemini",
-        "CLI_MCP_WORKING_DIR": "/path/to/your/project"
+        "CLI_MCP_SUBAGENTS": "codex,claude,cursor,gemini"
       }
     }
   }
@@ -445,8 +664,7 @@ Edit `~/.config/claude_desktop_config.json`:
     "roundtable-ai": {
       "command": "roundtable-ai",
       "env": {
-        "CLI_MCP_SUBAGENTS": "codex,claude,cursor,gemini",
-        "CLI_MCP_WORKING_DIR": "/path/to/your/project"
+        "CLI_MCP_SUBAGENTS": "codex,claude,cursor,gemini"
       }
     }
   }
@@ -490,7 +708,6 @@ Edit `~/.config/claude_desktop_config.json`:
    - Environment Variables:
      ```
      CLI_MCP_SUBAGENTS=codex,claude,cursor,gemini
-     CLI_MCP_WORKING_DIR=/path/to/your/project
      ```
 
 </details>
@@ -526,8 +743,7 @@ Add to Qodo Gen configuration:
     "roundtable-ai": {
       "command": "roundtable-ai",
       "env": {
-        "CLI_MCP_SUBAGENTS": "codex,claude,cursor,gemini",
-        "CLI_MCP_WORKING_DIR": "/path/to/your/project"
+        "CLI_MCP_SUBAGENTS": "codex,claude,cursor,gemini"
       }
     }
   }
@@ -601,8 +817,7 @@ Add to Trae workspace configuration:
       "roundtable-ai": {
         "command": "roundtable-ai",
         "env": {
-          "CLI_MCP_SUBAGENTS": "codex,claude,cursor,gemini",
-          "CLI_MCP_WORKING_DIR": "/path/to/your/project"
+          "CLI_MCP_SUBAGENTS": "codex,claude,cursor,gemini"
         }
       }
     }
@@ -686,8 +901,7 @@ Configure in Roo Code project settings:
       "roundtable-ai": {
         "command": "roundtable-ai",
         "env": {
-          "CLI_MCP_SUBAGENTS": "codex,claude,cursor,gemini",
-          "CLI_MCP_WORKING_DIR": "/path/to/your/project"
+          "CLI_MCP_SUBAGENTS": "codex,claude,cursor,gemini"
         }
       }
     }
@@ -706,8 +920,6 @@ Configure in Roo Code project settings:
 # Specify which AI assistants to enable
 CLI_MCP_SUBAGENTS="codex,claude,cursor,gemini"
 
-# Set working directory for project context
-CLI_MCP_WORKING_DIR="/path/to/your/project"
 
 # Enable debug logging
 CLI_MCP_DEBUG=true
@@ -763,8 +975,6 @@ Once integrated, you get access to:
 # Specify which assistants to enable
 export CLI_MCP_SUBAGENTS="codex,gemini"
 
-# Set project working directory
-export CLI_MCP_WORKING_DIR="/path/to/project"
 
 # Enable all tools regardless of availability
 export CLI_MCP_IGNORE_AVAILABILITY=true
@@ -773,128 +983,33 @@ export CLI_MCP_IGNORE_AVAILABILITY=true
 export CLI_MCP_DEBUG=true
 ```
 
-### Command Line Flags
+### Command Line Options
+
 ```bash
-# Get comprehensive help
 roundtable-ai --help
 
-# Check availability and save results
-roundtable-ai --check
-
-# Start with specific agents (overrides all other settings)
-roundtable-ai --agents cursor,claude
+Options:
+  --agents TEXT     Comma-separated list of agents (gemini,claude,codex,cursor)
+  --check          Check availability of all AI tools
+  --debug          Enable debug logging
+  --version        Show version information
+  --help           Show this message and exit
 ```
 
-## What Teams Get
+## Contributing
 
-### Faster Development
-- **Quick Setup**: Most teams set up new developers in minutes, not hours
-- **Less Debugging**: Fewer "why isn't this AI tool working?" problems
-- **Easier Switching**: Try different AI tools on the same problem without hassle
-- **Faster Onboarding**: New team members get all AI tools working immediately
-
-### Same Setup Everywhere
-- All developers use the same AI tools the same way
-- No more "works on my machine" problems with AI tools
-- One place to check all AI tool usage
-
-### Works with Future Tools
-- Built on MCP standard that major companies support
-- Switch AI providers easily without changing your setup
-- No vendor lock-in - use any AI tools you want
-- New AI tools will work automatically when they support MCP
-
-## Requirements
-
-### System Requirements
-- Python 3.8+
-- One or more AI CLI tools installed:
-  - Codex CLI (for Codex support)
-  - Claude Code CLI (for Claude support)
-  - Cursor CLI (for Cursor support)
-  - Gemini CLI (for Gemini support)
-
-### Dependencies
-The server automatically handles all dependencies:
-- FastMCP framework for high-performance MCP protocol implementation
-- Async/await support for concurrent AI assistant requests
-- Intelligent session management and error handling
-
-## How It Works
-
-### Built for Real Use
-- **FastMCP Framework** - Fast, reliable MCP server that handles multiple requests
-- **Easy to Extend** - Adding new AI tools is straightforward
-- **Uses Minimal Resources** - Won't slow down your computer
-- **Fails Safely** - If one AI tool breaks, the others keep working
-
-### Keeps Things Working
-- Remembers your conversation when switching between AI tools
-- Runs commands in the right folder for your project
-- Uses your existing AI tool logins - no new passwords to remember
-- Handles multiple requests at once without slowing down
-
-## Development & Testing
-
-### Testing the Installation
-```bash
-# Run the test suite
-python -m roundtable_mcp_server.test_server
-
-# Check server functionality
-roundtable-ai --check
-```
-
-### Building from Source
-```bash
-git clone https://github.com/askbudi/roundtable
-cd roundtable_mcp_server
-pip install -e .[dev]
-```
-
-### Development Tools
-Includes comprehensive development support:
-- Black code formatting
-- Ruff linting
-- MyPy type checking
-- Pytest test suite
-- Pre-commit hooks
-
-## Troubleshooting
-
-### Common Issues
-
-**No AI tools detected?**
-- Run `roundtable-ai --check` to see detailed availability report
-- Ensure CLI tools are properly installed and in your PATH
-- Check that API keys are configured for tools that require them
-
-**MCP client not connecting?**
-- Verify MCP client configuration matches the command aliases
-- Check that the working directory is accessible
-- Enable debug logging with `CLI_MCP_DEBUG=true`
-
-**Want to force enable specific tools?**
-- Use `CLI_MCP_IGNORE_AVAILABILITY=true` to bypass availability checking
-- Use `--agents` flag for precise control: `roundtable-ai --agents codex,claude`
-
-### Debug Information
-- Debug logs are written to: `roundtable_mcp_server.log`
-- Availability cache location: `~/.roundtable/availability_check.json`
-- Use `--help` for comprehensive command documentation
+1. Fork the repository
+2. Create a feature branch (`git checkout -b feature/amazing-feature`)
+3. Commit your changes (`git commit -m 'Add some amazing feature'`)
+4. Push to the branch (`git push origin feature/amazing-feature`)
+5. Open a Pull Request
 
 ## License
 
-GNU Affero General Public License v3
-
-## About Roundtable AI
-
-Roundtable AI develops intelligent infrastructure and tooling solutions to enhance AI-assisted development workflows. We focus on eliminating complexity and friction in developer tools while maintaining the highest standards of reliability and performance.
-
-**Learn more**: [askbudi.ai](https://askbudi.ai)
-**Repository**: [github.com/askbudi/roundtable](https://github.com/askbudi/roundtable)
-**Support**: support@askbudi.ai
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
 ---
 
-*Ready to unify your AI coding assistants? Install `roundtable-ai` and experience zero-configuration AI integration in under 5 minutes.*
+**Built for developers who value their time.** Stop context-switching between AI tools and start solving problems faster with coordinated multi-agent workflows.
+
+For more examples, advanced usage patterns, and troubleshooting guides, visit our [GitHub repository](https://github.com/askbudi/roundtable).
