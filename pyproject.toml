@@ -26,7 +26,6 @@ classifiers = [
 dependencies = [
     "fastmcp>=0.1.0",
     "aiohttp>=3.8.0",
-    "sqlalchemy>=2.0.0",
     "claude_code_sdk",
     "pydantic>=2.7",
     "tinyagent-py>=0.1.18",
@@ -49,9 +48,9 @@ roundtable-mcp-server = "roundtable_mcp_server.server:main"
 roundtable-ai = "roundtable_mcp_server.server:main"
 
 [project.urls]
-Homepage = "https://askbudi.ai"
+Homepage = "https://askbudi.ai/roundtable"
 Repository = "https://github.com/askbudi/roundtable"
-Documentation = "https://askbudi.ai"
+Documentation = "https://askbudi.ai/roundtable"
 
 [tool.setuptools.packages.find]
 where = ["."]

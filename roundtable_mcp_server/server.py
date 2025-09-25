@@ -12,6 +12,7 @@ import json
 import logging
 import os
 import sys
+import tomllib
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Set
@@ -285,7 +286,7 @@ async def codex_subagent(
     instruction: str,
     project_path: Optional[str] = None,
     session_id: Optional[str] = None,
-    model: Optional[str] = None,
+    model: Optional[str] = 'gpt-5',
     is_initial_prompt: bool = False,
     ctx: Context = None
 ) -> str:
@@ -303,7 +304,7 @@ async def codex_subagent(
         instruction: The coding task or instruction to execute
         project_path: ABSOLUTE path to the project directory (e.g., '/home/user/myproject'). If not provided, uses current working directory.
         session_id: Optional session ID for conversation continuity
-        model: Optional model to use (e.g., 'gpt-5', 'claude-3.5-sonnet')
+        model: Optional model to use ( 'gpt-5' is the only supported model)
         is_initial_prompt: Whether this is the first prompt in a new session
 
     Returns:
@@ -347,6 +348,7 @@ async def codex_subagent(
         return f"❌ {error_msg}"
 
     logger.info(f"Executing Codex subagent with instruction: {instruction[:100]}...")
+    logger.debug(f"[MCP-TOOL] codex_subagent started - project_path: {project_path}, model: {model}, session_id: {session_id}")
     
 
     try:
@@ -366,6 +368,7 @@ async def codex_subagent(
         tool_uses = []
         message_count = 0
         logger.info(f"Codex subagent execution started :verbose={config.verbose}")
+        logger.debug(f"[MCP-TOOL] Codex CLI streaming started - will process messages and report progress")
 
         async for message in codex_cli.execute_with_streaming(
             instruction=instruction,
@@ -386,12 +389,13 @@ async def codex_subagent(
             content = getattr(message, "content", "")
             content_preview = str(content)[:100] if content else ""
 
-            # Progress reporting - minimal format as requested
-            logger.debug(f"Codex #{message_count}: {msg_type_str} => {content_preview}")
+            # Progress reporting with debug logging
+            progress_message = f"Codex #{message_count}: {msg_type_str} => {content}"
+            logger.debug(f"[PROGRESS] {progress_message}")
             await ctx.report_progress(
                 progress=message_count,
                 total=None,
-                message=f"Codex #{message_count}: {msg_type_str} => {content}"
+                message=progress_message
             )
 
             # Categorize messages for summary (same logic as cli_subagent.py)
@@ -431,6 +435,7 @@ async def codex_subagent(
         summary = "\n\n".join(summary_parts)
 
         logger.info("Codex subagent execution completed")
+        logger.debug(f"[MCP-TOOL] Codex execution completed - total messages: {message_count}, agent_responses: {len(agent_responses)}, tool_uses: {len(tool_uses)}")
         logger.debug(f"Result summary: {summary[:200]}..." if len(summary) > 200 else f"Result: {summary}")
         if config.verbose:
             return summary  
@@ -511,6 +516,7 @@ async def claude_subagent(
         return f"❌ {error_msg}"
 
     logger.info(f"Executing Claude subagent with instruction: {instruction[:100]}...")
+    logger.debug(f"[MCP-TOOL] claude_subagent started - project_path: {project_path}, model: {model}, session_id: {session_id}")
 
     try:
         # Initialize ClaudeCodeCLI directly
@@ -529,6 +535,7 @@ async def claude_subagent(
         tool_uses = []
         message_count = 0
         logger.info(f"Claude subagent execution started :verbose={config.verbose}")
+        logger.debug(f"[MCP-TOOL] Claude CLI streaming started - will process messages and report progress")
 
         async for message in claude_cli.execute_with_streaming(
             instruction=instruction,
@@ -549,12 +556,13 @@ async def claude_subagent(
             content = getattr(message, "content", "")
             content_preview = str(content)[:100] if content else ""
 
-            # Progress reporting - minimal format as requested
-            logger.debug(f"Claude #{message_count}: {msg_type_str} => {content_preview}")
+            # Progress reporting with debug logging
+            progress_message = f"Claude #{message_count}: {msg_type_str} => {content}"
+            logger.debug(f"[PROGRESS] {progress_message}")
             await ctx.report_progress(
                 progress=message_count,
                 total=None,
-                message=f"Claude #{message_count}: {msg_type_str} => {content}"
+                message=progress_message
             )
 
             # Categorize messages for summary (same logic as codex_subagent)
@@ -596,6 +604,7 @@ async def claude_subagent(
         summary = "\n\n".join(summary_parts)
 
         logger.info("Claude subagent execution completed")
+        logger.debug(f"[MCP-TOOL] Claude execution completed - total messages: {message_count}, agent_responses: {len(agent_responses)}, tool_uses: {len(tool_uses)}")
         logger.debug(f"Result summary: {summary[:200]}..." if len(summary) > 200 else f"Result: {summary}")
         if config.verbose:
             return summary
@@ -630,7 +639,7 @@ async def cursor_subagent(
         instruction: The coding task or instruction to execute
         project_path: ABSOLUTE path to the project directory (e.g., '/home/user/myproject'). If not provided, uses current working directory.
         session_id: Optional session ID for conversation continuity
-        model: Optional model to use (e.g., 'gpt-5', 'sonnet-4', 'opus-4.1')
+        model: Optional model to use (e.g., 'gpt-5', 'sonnet-4', 'sonnet-4-thinking')
         is_initial_prompt: Whether this is the first prompt in a new session
 
     Returns:
@@ -655,6 +664,7 @@ async def cursor_subagent(
         return f"❌ {error_msg}"
 
     logger.info(f"Executing Cursor subagent with instruction: {instruction[:100]}...")
+    logger.debug(f"[MCP-TOOL] cursor_subagent started - project_path: {project_path}, model: {model}, session_id: {session_id}")
 
     # Prefer streaming via adapter (to emit MCP progress), with safe fallback
     try:
@@ -698,6 +708,7 @@ async def cursor_subagent(
         tool_uses: List[str] = []
         message_count = 0
         logger.info(f"Cursor subagent execution started :verbose={config.verbose}")
+        logger.debug(f"[MCP-TOOL] Cursor CLI streaming started - will process messages and report progress")
 
         async for message in cursor_cli.execute_with_streaming(
             instruction=instruction,
@@ -716,13 +727,14 @@ async def cursor_subagent(
             content = getattr(message, "content", "")
             content_preview = str(content)[:100] if content else ""
 
-            # Emit MCP progress with error handling
-            logger.debug(f"Cursor #{message_count}: {msg_type_str} => {content_preview}")
+            # Progress reporting with debug logging
+            progress_message = f"Cursor #{message_count}: {msg_type_str} => {content}"
+            logger.debug(f"[PROGRESS] {progress_message}")
             try:
                 await ctx.report_progress(
                     progress=message_count,
                     total=None,
-                    message=f"Cursor #{message_count}: {msg_type_str} => {content}",
+                    message=progress_message,
                 )
             except Exception as e:
                 logger.debug(f"Progress reporting failed (non-critical): {e}")
@@ -769,6 +781,7 @@ async def cursor_subagent(
         summary = "\n\n".join(summary_parts)
 
         logger.info("Cursor subagent execution completed")
+        logger.debug(f"[MCP-TOOL] Cursor execution completed - total messages: {message_count}, agent_responses: {len(agent_responses)}, tool_uses: {len(tool_uses)}")
         logger.debug(
             f"Result summary: {summary[:200]}..." if len(summary) > 200 else f"Result: {summary}"
         )
@@ -805,7 +818,7 @@ async def gemini_subagent(
         instruction: The coding task or instruction to execute
         project_path: ABSOLUTE path to the project directory (e.g., '/home/user/myproject'). If not provided, uses current working directory.
         session_id: Optional session ID for conversation continuity
-        model: Optional model to use (e.g., 'gemini-2.5-pro', 'gemini-2.5-flash')
+        model: Optional model to use ( 'gemini-2.5-pro', 'gemini-2.5-flash' are the only supported models)
         is_initial_prompt: Whether this is the first prompt in a new session
 
     Returns:
@@ -848,6 +861,7 @@ async def gemini_subagent(
         return f"❌ {error_msg}"
 
     logger.info(f"Executing Gemini subagent with instruction: {instruction[:100]}...")
+    logger.debug(f"[MCP-TOOL] gemini_subagent started - project_path: {project_path}, model: {model}, session_id: {session_id}")
 
     try:
         # Initialize GeminiCLI directly
@@ -866,6 +880,7 @@ async def gemini_subagent(
         tool_uses = []
         message_count = 0
         logger.info(f"Gemini subagent execution started :verbose={config.verbose}")
+        logger.debug(f"[MCP-TOOL] Gemini CLI streaming started - will process messages and report progress")
 
         async for message in gemini_cli.execute_with_streaming(
             instruction=instruction,
@@ -886,12 +901,13 @@ async def gemini_subagent(
             content = getattr(message, "content", "")
             content_preview = str(content)[:100] if content else ""
 
-            # Progress reporting - minimal format as requested
-            logger.debug(f"Gemini #{message_count}: {msg_type_str} => {content_preview}")
+            # Progress reporting with debug logging
+            progress_message = f"Gemini #{message_count}: {msg_type_str} => {content}"
+            logger.debug(f"[PROGRESS] {progress_message}")
             await ctx.report_progress(
                 progress=message_count,
                 total=None,
-                message=f"Gemini #{message_count}: {msg_type_str} => {content}"
+                message=progress_message
             )
 
             # Categorize messages for summary (same logic as codex_subagent)
@@ -933,6 +949,7 @@ async def gemini_subagent(
         summary = "\n\n".join(summary_parts)
 
         logger.info("Gemini subagent execution completed")
+        logger.debug(f"[MCP-TOOL] Gemini execution completed - total messages: {message_count}, agent_responses: {len(agent_responses)}, tool_uses: {len(tool_uses)}")
         logger.debug(f"Result summary: {summary[:200]}..." if len(summary) > 200 else f"Result: {summary}")
         if config.verbose:
             return summary
@@ -960,11 +977,13 @@ async def test_tool(context: Context,signal: bool = True) -> Any:
     for i in range(total_items):
         # Do work
         await anyio.sleep(1)
-        await context.debug(f"Processing step {i+1} of {total_items}")
+        progress_message = f"Processing step {i+1} of {total_items}"
+        logger.debug(f"[PROGRESS] {progress_message}")
+        await context.debug(progress_message)
         await context.report_progress(
                   progress=i + 1,
                   total=total_items,
-                  message=f"Processing step {i+1} of {total_items}"
+                  message=progress_message
               )
     
 
@@ -975,6 +994,25 @@ async def run_availability_check():
     """Run CLI availability check and save results."""
     availability_main = _import_module_item("availability_checker", "main")
     await availability_main()
+
+
+def get_version() -> str:
+    """Read version from pyproject.toml."""
+    try:
+        # Get the path to pyproject.toml relative to this file
+        current_dir = Path(__file__).parent
+        pyproject_path = current_dir.parent / "pyproject.toml"
+
+        if not pyproject_path.exists():
+            return "unknown"
+
+        with open(pyproject_path, "rb") as f:
+            pyproject_data = tomllib.load(f)
+
+        return pyproject_data.get("project", {}).get("version", "unknown")
+    except Exception as e:
+        logger.warning(f"Could not read version from pyproject.toml: {e}")
+        return "unknown"
 
 
 def main():
@@ -1035,8 +1073,9 @@ Priority Order:
     initialize_config()
 
     # Normal server startup
+    version = get_version()
     logger.info("=" * 60)
-    logger.info(f"Roundtable AI MCP Server starting at {datetime.now()}")
+    logger.info(f"Roundtable AI MCP Server v{version} starting at {datetime.now()}")
     logger.info("=" * 60)
 
     try:

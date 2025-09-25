@@ -26,7 +26,7 @@ class ClaudeCodeCLI(BaseCLI):
 
     def __init__(self):
         super().__init__(CLIType.CLAUDE)
-        self.session_mapping: Dict[str, str] = {}
+        self.session_mapping: Dict[str, str] = {}  # Simple in-memory session storage
 
     async def check_availability(self) -> Dict[str, Any]:
         """Check if Claude Code CLI is available"""
@@ -104,113 +104,40 @@ class ClaudeCodeCLI(BaseCLI):
         if log_callback:
             await log_callback("Starting execution...")
 
-        # Load system prompt
-        try:
-            # Mock system prompt - replace with actual implementation if needed
-            def get_system_prompt():
-                return "You are a helpful AI assistant."
-
-            system_prompt = get_system_prompt()
-            ui.debug(f"System prompt loaded: {len(system_prompt)} chars", "Claude SDK")
-        except Exception as e:
-            ui.error(f"Failed to load system prompt: {e}", "Claude SDK")
-            system_prompt = (
-                "You are Claude Code, an AI coding assistant specialized in building modern web applications."
-            )
+        # Use simple default system prompt
+        system_prompt = "You are Claude Code, an AI coding assistant."
 
         # Get CLI-specific model name
         cli_model = self._get_cli_model_name(model) or "claude-sonnet-4-20250514"
 
-        # Add project directory structure for initial prompts
-        if is_initial_prompt:
-            project_structure_info = """
-<initial_context>
-## Project Directory Structure (node_modules are already installed)
-.eslintrc.json
-.gitignore
-next.config.mjs
-next-env.d.ts
-package.json
-postcss.config.mjs
-README.md
-tailwind.config.ts
-tsconfig.json
-.env
-src/app/favicon.ico
-src/app/globals.css
-src/app/layout.tsx
-src/app/page.tsx
-public/
-node_modules/
-</initial_context>"""
-            instruction = instruction + project_structure_info
-            ui.info(
-                f"Added project structure info to initial prompt", "Claude SDK"
-            )
+        # Use instruction as-is without project-specific context
+        # Removed hardcoded project structure assumptions
 
-        # Configure tools based on initial prompt status
-        if is_initial_prompt:
-            # For initial prompts: use disallowed_tools to explicitly block TodoWrite
-            allowed_tools = [
-                "Read",
-                "Write",
-                "Edit",
-                "MultiEdit",
-                "Bash",
-                "Glob",
-                "Grep",
-                "LS",
-                "WebFetch",
-                "WebSearch",
-            ]
-            disallowed_tools = ["TodoWrite"]
+        # Configure standard tools without project-specific restrictions
+        allowed_tools = [
+            "Read",
+            "Write",
+            "Edit",
+            "MultiEdit",
+            "Bash",
+            "Glob",
+            "Grep",
+            "LS",
+            "WebFetch",
+            "WebSearch",
+            "TodoWrite",
+        ]
 
-            ui.info(
-                f"TodoWrite tool EXCLUDED via disallowed_tools (is_initial_prompt: {is_initial_prompt})",
-                "Claude SDK",
-            )
-            ui.debug(f"Allowed tools: {allowed_tools}", "Claude SDK")
-            ui.debug(f"Disallowed tools: {disallowed_tools}", "Claude SDK")
+        ui.debug(f"Allowed tools: {allowed_tools}", "Claude SDK")
 
-            # Configure Claude Code options with disallowed_tools
-            options = ClaudeCodeOptions(
-                system_prompt=system_prompt,
-                allowed_tools=allowed_tools,
-                disallowed_tools=disallowed_tools,
-                permission_mode="bypassPermissions",
-                model=cli_model,
-                continue_conversation=True,
-            )
-        else:
-            # For non-initial prompts: include TodoWrite in allowed tools
-            allowed_tools = [
-                "Read",
-                "Write",
-                "Edit",
-                "MultiEdit",
-                "Bash",
-                "Glob",
-                "Grep",
-                "LS",
-                "WebFetch",
-                "WebSearch",
-                "TodoWrite",
-            ]
-
-            ui.info(
-                f"TodoWrite tool INCLUDED (is_initial_prompt: {is_initial_prompt})",
-                "Claude SDK",
-            )
-            ui.debug(f"Allowed tools: {allowed_tools}", "Claude SDK")
-
-            # Configure Claude Code options without disallowed_tools
-            options = ClaudeCodeOptions(
-                system_prompt=system_prompt,
-                allowed_tools=allowed_tools,
-                permission_mode="bypassPermissions",
-                model=cli_model,
-                continue_conversation=True,
-            )
+        # Configure Claude Code options
+        options = ClaudeCodeOptions(
+            system_prompt=system_prompt,
+            allowed_tools=allowed_tools,
+            permission_mode="bypassPermissions",
+            model=cli_model,
+            continue_conversation=True,
+        )
 
         ui.info(f"Using model: {cli_model}", "Claude SDK")
         ui.debug(f"Project path: {project_path}", "Claude SDK")
@@ -451,26 +378,15 @@ node_modules/
             raise
 
     async def get_session_id(self, project_id: str) -> Optional[str]:
-        """Get current session ID for project from database"""
-        try:
-            # Try to get from database if available (we'll need to pass db session)
-            return self.session_mapping.get(project_id)
-        except Exception as e:
-            ui.warning(f"Failed to get session ID from DB: {e}", "Claude SDK")
-            return self.session_mapping.get(project_id)
+        """Get current session ID for project"""
+        return self.session_mapping.get(project_id)
 
     async def set_session_id(self, project_id: str, session_id: str) -> None:
-        """Set session ID for project in database and memory"""
-        try:
-            # Store in memory as fallback
-            self.session_mapping[project_id] = session_id
-            ui.debug(
-                f"Session ID stored for project {project_id}", "Claude SDK"
-            )
-        except Exception as e:
-            ui.warning(f"Failed to save session ID: {e}", "Claude SDK")
-            # Fallback to memory storage
-            self.session_mapping[project_id] = session_id
+        """Set session ID for project in memory"""
+        self.session_mapping[project_id] = session_id
+        ui.debug(
+            f"Session ID stored for project {project_id}", "Claude SDK"
+        )
 
 
 __all__ = ["ClaudeCodeCLI"]

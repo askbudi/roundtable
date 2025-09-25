@@ -21,10 +21,9 @@ from ..base import BaseCLI, CLIType
 class CodexCLI(BaseCLI):
     """Codex CLI implementation with auto-approval and message buffering"""
 
-    def __init__(self, db_session=None):
+    def __init__(self):
         super().__init__(CLIType.CODEX)
-        self.db_session = db_session
-        self._session_store = {}  # Fallback for when db_session is not available
+        self._session_store = {}  # Simple in-memory session storage
 
     async def check_availability(self) -> Dict[str, Any]:
         """Check if Codex CLI is available"""
@@ -82,20 +81,7 @@ class CodexCLI(BaseCLI):
     ) -> AsyncGenerator[Message, None]:
         """Execute Codex CLI with auto-approval and message buffering"""
 
-        # Ensure AGENTS.md exists in project repo with system prompt (essential)
-        # If needed, set CLAUDABLE_DISABLE_AGENTS_MD=1 to skip.
-        try:
-            if str(os.getenv("CLAUDABLE_DISABLE_AGENTS_MD", "")).lower() in (
-                "1",
-                "true",
-                "yes",
-                "on",
-            ):
-                ui.debug("AGENTS.md auto-creation disabled by env", "Codex")
-            else:
-                await self._ensure_agent_md(project_path)
-        except Exception as _e:
-            ui.debug(f"AGENTS.md ensure failed (continuing): {_e}", "Codex")
+        # Skip AGENTS.md creation - removed for MCP server usage
 
         # Get CLI-specific model name
         cli_model = self._get_cli_model_name(model) or "gpt-5"
@@ -104,20 +90,17 @@ class CodexCLI(BaseCLI):
         # Get project ID for session management
         project_id = project_path.split("/")[-1] if "/" in project_path else project_path
 
-        # Determine the repo path - Codex should run in repo directory
-        project_repo_path = os.path.join(project_path, "repo")
-        if not os.path.exists(project_repo_path):
-            project_repo_path = project_path  # Fallback to project_path if repo subdir doesn't exist
+        # Use the provided project path directly
+        project_repo_path = project_path
 
         # Build Codex command - --cd must come BEFORE proto subcommand
         workdir_abs = os.path.abspath(project_repo_path)
         auto_instructions = (
             "Act autonomously without asking for user confirmations. "
-            "Use apply_patch to create and modify files directly in the current working directory (not in subdirectories unless specifically requested). "
+            "Use apply_patch to create and modify files as needed. "
             "Use exec_command to run, build, and test as needed. "
             "Assume full permissions. Keep taking concrete actions until the task is complete. "
-            "Prefer concise status updates over questions. "
-            "Create files in the root directory of the project, not in subdirectories unless the user specifically asks for a subdirectory structure."
+            "Prefer concise status updates over questions."
         )
 
         cmd = [
@@ -242,39 +225,8 @@ class CodexCLI(BaseCLI):
             request_id = f"msg_{uuid.uuid4().hex[:8]}"
             current_request_id = request_id
 
-            # Add project directory context for initial prompts
+            # Use instruction as-is without project-specific context
             final_instruction = instruction
-            if is_initial_prompt:
-                try:
-                    # Get actual files in the project repo directory
-                    repo_files: List[str] = []
-                    if os.path.exists(project_repo_path):
-                        for item in os.listdir(project_repo_path):
-                            if not item.startswith(".git") and item != "AGENTS.md":
-                                repo_files.append(item)
-
-                    if repo_files:
-                        project_context = f"""
-
-<current_project_context>
-Current files in project directory: {', '.join(sorted(repo_files))}
-Work directly in the current directory. Do not create subdirectories unless specifically requested.
-</current_project_context>"""
-                        final_instruction = instruction + project_context
-                        ui.info(
-                            f"Added current project files context to Codex", "Codex"
-                        )
-                    else:
-                        project_context = """
-
-<current_project_context>
-This is an empty project directory. Create files directly in the current working directory.
-Do not create subdirectories unless specifically requested by the user.
-</current_project_context>"""
-                        final_instruction = instruction + project_context
-                        ui.info(f"Added empty project context to Codex", "Codex")
-                except Exception as e:
-                    ui.warning(f"Failed to add project context: {e}", "Codex")
 
             # Build instruction with image references
             if images:
@@ -618,147 +570,27 @@ Do not create subdirectories unless specifically requested by the user.
 
     async def get_session_id(self, project_id: str) -> Optional[str]:
         """Get stored session ID for project"""
-        # Try to get from database first
-        if self.db_session:
-            try:
-                from claudable_helper.models.projects import Project
-
-                project = (
-                    self.db_session.query(Project)
-                    .filter(Project.id == project_id)
-                    .first()
-                )
-                if project and project.active_cursor_session_id:
-                    # Parse JSON data that might contain codex session info
-                    try:
-                        session_data = json.loads(project.active_cursor_session_id)
-                        if isinstance(session_data, dict) and "codex" in session_data:
-                            codex_session = session_data["codex"]
-                            ui.debug(
-                                f"Retrieved Codex session from DB: {codex_session}", "Codex"
-                            )
-                            return codex_session
-                    except (json.JSONDecodeError, TypeError):
-                        # If it's not JSON, might be a plain cursor session ID
-                        pass
-            except Exception as e:
-                ui.warning(f"Failed to get Codex session from DB: {e}", "Codex")
-
-        # Fallback to memory storage
         return self._session_store.get(project_id)
 
     async def set_session_id(self, project_id: str, session_id: str) -> None:
-        """Store session ID for project with database persistence"""
-        # Store in database
-        if self.db_session:
-            try:
-                from claudable_helper.models.projects import Project
-
-                project = (
-                    self.db_session.query(Project)
-                    .filter(Project.id == project_id)
-                    .first()
-                )
-                if project:
-                    # Try to parse existing session data
-                    existing_data: Dict[str, Any] = {}
-                    if project.active_cursor_session_id:
-                        try:
-                            existing_data = json.loads(project.active_cursor_session_id)
-                            if not isinstance(existing_data, dict):
-                                # If it's a plain string, preserve it as cursor session
-                                existing_data = {
-                                    "cursor": project.active_cursor_session_id
-                                }
-                        except (json.JSONDecodeError, TypeError):
-                            existing_data = {"cursor": project.active_cursor_session_id}
-
-                    # Add/update codex session
-                    existing_data["codex"] = session_id
-
-                    # Save back to database
-                    project.active_cursor_session_id = json.dumps(existing_data)
-                    self.db_session.commit()
-                    ui.debug(
-                        f"Codex session saved to DB for project {project_id}: {session_id}",
-                        "Codex",
-                    )
-            except Exception as e:
-                ui.error(f"Failed to save Codex session to DB: {e}", "Codex")
-
-        # Store in memory as fallback
+        """Store session ID for project in memory"""
         self._session_store[project_id] = session_id
         ui.debug(
-            f"Codex session stored in memory for project {project_id}: {session_id}",
+            f"Codex session stored for project {project_id}: {session_id}",
             "Codex",
         )
 
     async def get_rollout_path(self, project_id: str) -> Optional[str]:
         """Get stored rollout file path for project"""
-        if self.db_session:
-            try:
-                from claudable_helper.models.projects import Project
-
-                project = (
-                    self.db_session.query(Project)
-                    .filter(Project.id == project_id)
-                    .first()
-                )
-                if project and project.active_cursor_session_id:
-                    try:
-                        session_data = json.loads(project.active_cursor_session_id)
-                        if (
-                            isinstance(session_data, dict)
-                            and "codex_rollout" in session_data
-                        ):
-                            rollout_path = session_data["codex_rollout"]
-                            ui.debug(
-                                f"Retrieved Codex rollout path from DB: {rollout_path}",
-                                "Codex",
-                            )
-                            return rollout_path
-                    except (json.JSONDecodeError, TypeError):
-                        pass
-            except Exception as e:
-                ui.warning(f"Failed to get Codex rollout path from DB: {e}", "Codex")
-        return None
+        # Simplified: just find latest rollout without database dependency
+        return self._find_latest_rollout_for_project(project_id)
 
     async def set_rollout_path(self, project_id: str, rollout_path: str) -> None:
-        """Store rollout file path for project"""
-        if self.db_session:
-            try:
-                from claudable_helper.models.projects import Project
-
-                project = (
-                    self.db_session.query(Project)
-                    .filter(Project.id == project_id)
-                    .first()
-                )
-                if project:
-                    # Try to parse existing session data
-                    existing_data: Dict[str, Any] = {}
-                    if project.active_cursor_session_id:
-                        try:
-                            existing_data = json.loads(project.active_cursor_session_id)
-                            if not isinstance(existing_data, dict):
-                                existing_data = {
-                                    "cursor": project.active_cursor_session_id
-                                }
-                        except (json.JSONDecodeError, TypeError):
-                            existing_data = {"cursor": project.active_cursor_session_id}
-
-                    # Add/update rollout path
-                    existing_data["codex_rollout"] = rollout_path
-
-                    # Save back to database
-                    project.active_cursor_session_id = json.dumps(existing_data)
-                    self.db_session.commit()
-                    ui.debug(
-                        f"Codex rollout path saved to DB for project {project_id}: {rollout_path}",
-                        "Codex",
-                    )
-            except Exception as e:
-                ui.error(f"Failed to save Codex rollout path to DB: {e}", "Codex")
+        """Store rollout file path for project - simplified for MCP usage"""
+        ui.debug(
+            f"Codex rollout path noted for project {project_id}: {rollout_path}",
+            "Codex",
+        )
 
     def _find_latest_rollout_for_project(self, project_id: str) -> Optional[str]:
         """Find the latest rollout file using codex_chat.py logic"""
@@ -797,44 +629,6 @@ Do not create subdirectories unless specifically requested by the user.
             ui.warning(f"Failed to find latest rollout file: {e}", "Codex")
             return None
 
-    async def _ensure_agent_md(self, project_path: str) -> None:
-        """Ensure AGENTS.md exists in project repo with system prompt"""
-        # Determine the repo path
-        project_repo_path = os.path.join(project_path, "repo")
-        if not os.path.exists(project_repo_path):
-            project_repo_path = project_path
-
-        agent_md_path = os.path.join(project_repo_path, "AGENTS.md")
-
-        # Check if AGENTS.md already exists
-        if os.path.exists(agent_md_path):
-            ui.debug(f"AGENTS.md already exists at: {agent_md_path}", "Codex")
-            return
-
-        try:
-            # Read system prompt from the source file using relative path
-            current_file_dir = os.path.dirname(os.path.abspath(__file__))
-            # this file is in: app/services/cli/adapters/
-            # go up to app/: adapters -> cli -> services -> app
-            app_dir = os.path.abspath(os.path.join(current_file_dir, "..", "..", ".."))
-            system_prompt_path = os.path.join(app_dir, "prompt", "system-prompt.md")
-
-            if os.path.exists(system_prompt_path):
-                with open(system_prompt_path, "r", encoding="utf-8") as f:
-                    system_prompt_content = f.read()
-
-                # Write to AGENTS.md in the project repo
-                with open(agent_md_path, "w", encoding="utf-8") as f:
-                    f.write(system_prompt_content)
-
-                ui.success(f"Created AGENTS.md at: {agent_md_path}", "Codex")
-            else:
-                ui.warning(
-                    f"System prompt file not found at: {system_prompt_path}",
-                    "Codex",
-                )
-        except Exception as e:
-            ui.error(f"Failed to create AGENTS.md: {e}", "Codex")
 
     async def _set_codex_approval_policy(self, process, session_id: str):
         """Set Codex approval policy to never (full-auto mode)"""
