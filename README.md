@@ -4,6 +4,8 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
 
+[![Install Roundtable AI MCP Server in Cursor](https://cursor.com/deeplink/mcp-install-dark.svg)](cursor://anysphere.cursor-deeplink/mcp/install?name=roundtable-ai&config=eyJ0eXBlIjoic3RkaW8iLCJjb21tYW5kIjoidXZ4IiwiYXJncyI6WyJyb3VuZHRhYmxlLWFpQGxhdGVzdCJdLCJlbnYiOnsiQ0xJX01DUF9TVUJBR0VOVFMiOiJjb2RleCxjbGF1ZGUsY3Vyc29yLGdlbWluaSJ9fQo=)
+
 Stop copy-pasting between AI models. Roundtable AI is a local MCP server that lets your primary AI assistant delegate tasks to specialized models like Gemini, Claude, Codex, and Cursor. Solve complex engineering problems in parallel, directly from your IDE.
 
 **Key Features:**
@@ -251,6 +253,17 @@ claude mcp add roundtable-ai -- uvx roundtable-ai@latest --agents gemini,claude,
 ```
 
 ### 2. Cursor
+
+**One-Click Install:**
+
+[![Install Roundtable AI MCP Server in Cursor](https://cursor.com/deeplink/mcp-install-dark.svg)](cursor://anysphere.cursor-deeplink/mcp/install?name=roundtable-ai&config=eyJ0eXBlIjoic3RkaW8iLCJjb21tYW5kIjoidXZ4IiwiYXJncyI6WyJyb3VuZHRhYmxlLWFpQGxhdGVzdCJdLCJlbnYiOnsiQ0xJX01DUF9TVUJBR0VOVFMiOiJjb2RleCxjbGF1ZGUsY3Vyc29yLGdlbWluaSJ9fQo=)
+
+Or use this direct link:
+```
+cursor://anysphere.cursor-deeplink/mcp/install?name=roundtable-ai&config=eyJ0eXBlIjoic3RkaW8iLCJjb21tYW5kIjoidXZ4IiwiYXJncyI6WyJyb3VuZHRhYmxlLWFpQGxhdGVzdCJdLCJlbnYiOnsiQ0xJX01DUF9TVUJBR0VOVFMiOiJjb2RleCxjbGF1ZGUsY3Vyc29yLGdlbWluaSJ9fQo=
+```
+
+**Manual Installation:**
 
 **File:** `.cursor/mcp.json`
 
