@@ -20,10 +20,9 @@ from ..base import BaseCLI, CLIType
 class CursorAgentCLI(BaseCLI):
     """Cursor Agent CLI implementation with stream-json support and session continuity"""
 
-    def __init__(self, db_session=None):
+    def __init__(self):
         super().__init__(CLIType.CURSOR)
-        self.db_session = db_session
-        self._session_store = {}  # Fallback for when db_session is not available
+        self._session_store = {}  # Simple in-memory session storage
 
     async def check_availability(self) -> Dict[str, Any]:
         """Check if Cursor Agent CLI is available"""
@@ -218,43 +217,6 @@ class CursorAgentCLI(BaseCLI):
 
         return None
 
-    async def _ensure_agent_md(self, project_path: str) -> None:
-        """Ensure AGENTS.md exists in project repo with system prompt"""
-        # Determine the repo path
-        project_repo_path = os.path.join(project_path, "repo")
-        if not os.path.exists(project_repo_path):
-            project_repo_path = project_path
-
-        agent_md_path = os.path.join(project_repo_path, "AGENTS.md")
-
-        # Check if AGENTS.md already exists
-        if os.path.exists(agent_md_path):
-            print(f"📝 [Cursor] AGENTS.md already exists at: {agent_md_path}")
-            return
-
-        try:
-            # Read system prompt from the source file using relative path
-            current_file_dir = os.path.dirname(os.path.abspath(__file__))
-            # this file is in: app/services/cli/adapters/
-            # go up to app/: adapters -> cli -> services -> app
-            app_dir = os.path.abspath(os.path.join(current_file_dir, "..", "..", ".."))
-            system_prompt_path = os.path.join(app_dir, "prompt", "system-prompt.md")
-
-            if os.path.exists(system_prompt_path):
-                with open(system_prompt_path, "r", encoding="utf-8") as f:
-                    system_prompt_content = f.read()
-
-                # Write to AGENTS.md in the project repo
-                with open(agent_md_path, "w", encoding="utf-8") as f:
-                    f.write(system_prompt_content)
-
-                print(f"📝 [Cursor] Created AGENTS.md at: {agent_md_path}")
-            else:
-                print(
-                    f"⚠️ [Cursor] System prompt file not found at: {system_prompt_path}"
-                )
-        except Exception as e:
-            print(f"❌ [Cursor] Failed to create AGENTS.md: {e}")
 
     async def execute_with_streaming(
         self,
@@ -267,21 +229,10 @@ class CursorAgentCLI(BaseCLI):
         is_initial_prompt: bool = False,
     ) -> AsyncGenerator[Message, None]:
         """Execute Cursor Agent CLI with stream-json format and session continuity"""
-        # Ensure AGENTS.md exists for system prompt
-        await self._ensure_agent_md(project_path)
+        # Skip AGENTS.md creation - removed for MCP server usage
 
-        # Extract project ID from path (format: .../projects/{project_id}/repo)
-        # We need the project_id, not "repo"
-        path_parts = project_path.split("/")
-        if "repo" in path_parts and len(path_parts) >= 2:
-            # Get the folder before "repo"
-            repo_index = path_parts.index("repo")
-            if repo_index > 0:
-                project_id = path_parts[repo_index - 1]
-            else:
-                project_id = path_parts[-1] if path_parts else project_path
-        else:
-            project_id = path_parts[-1] if path_parts else project_path
+        # Extract project ID - simplified path handling
+        project_id = os.path.basename(project_path)
 
         stored_session_id = await self.get_session_id(project_id)
 
@@ -310,9 +261,8 @@ class CursorAgentCLI(BaseCLI):
             cmd.extend(["--model", cli_model])
             print(f"🔧 [Cursor] Using model: {cli_model}")
 
-        project_repo_path = os.path.join(project_path, "repo")
-        if not os.path.exists(project_repo_path):
-            project_repo_path = project_path  # Fallback to project_path if repo subdir doesn't exist
+        # Use the provided project path directly
+        project_repo_path = project_path
 
         try:
             process = await asyncio.create_subprocess_exec(
@@ -534,60 +484,14 @@ class CursorAgentCLI(BaseCLI):
                 await self._cleanup_cursor_process(process, stderr_task_var)
 
     async def get_session_id(self, project_id: str) -> Optional[str]:
-        """Get stored session ID for project to enable session continuity"""
-        if self.db_session:
-            try:
-                from claudable_helper.models.projects import Project
-
-                project = (
-                    self.db_session.query(Project)
-                    .filter(Project.id == project_id)
-                    .first()
-                )
-                if project and project.active_cursor_session_id:
-                    print(
-                        f"💾 [Cursor] Retrieved session ID from DB: {project.active_cursor_session_id}"
-                    )
-                    return project.active_cursor_session_id
-            except Exception as e:
-                print(f"⚠️ [Cursor] Failed to get session ID from DB: {e}")
-
-        # Fallback to in-memory storage
+        """Get stored session ID for project"""
         return self._session_store.get(project_id)
 
     async def set_session_id(self, project_id: str, session_id: str) -> None:
-        """Store session ID for project to enable session continuity"""
-        # Store in database if available
-        if self.db_session:
-            try:
-                from claudable_helper.models.projects import Project
-
-                project = (
-                    self.db_session.query(Project)
-                    .filter(Project.id == project_id)
-                    .first()
-                )
-                if project:
-                    project.active_cursor_session_id = session_id
-                    self.db_session.commit()
-                    print(
-                        f"💾 [Cursor] Session ID saved to DB for project {project_id}: {session_id}"
-                    )
-                    return
-                else:
-                    print(f"⚠️ [Cursor] Project {project_id} not found in DB")
-            except Exception as e:
-                print(f"⚠️ [Cursor] Failed to save session ID to DB: {e}")
-                import traceback
-
-                traceback.print_exc()
-        else:
-            print(f"⚠️ [Cursor] No DB session available")
-
-        # Fallback to in-memory storage
+        """Store session ID for project in memory"""
         self._session_store[project_id] = session_id
         print(
-            f"💾 [Cursor] Session ID stored in memory for project {project_id}: {session_id}"
+            f"💾 [Cursor] Session ID stored for project {project_id}: {session_id}"
         )
 
     async def _drain_stderr(self, stderr) -> None:

@@ -28,10 +28,9 @@ class GeminiCLI(BaseCLI):
     _LOOP_CLIENTS: Dict[asyncio.AbstractEventLoop, _ACPClient] = {}
     _LOOP_INITIALIZED: Dict[asyncio.AbstractEventLoop, bool] = {}
 
-    def __init__(self, db_session=None):
+    def __init__(self):
         super().__init__(CLIType.GEMINI)
-        self.db_session = db_session
-        self._session_store: Dict[str, str] = {}
+        self._session_store: Dict[str, str] = {}  # Simple in-memory session storage
         self._client: Optional[_ACPClient] = None
         self._initialized = False
         self._per_call_mode = os.getenv("GEMINI_PER_CALL", "1") == "1"
@@ -59,34 +58,6 @@ class GeminiCLI(BaseCLI):
         except Exception as e:
             return {"available": False, "configured": False, "error": str(e)}
 
-    async def _ensure_provider_md(self, project_path: str) -> None:
-        """Ensure GEMINI.md exists at the project repo root.
-
-        Mirrors CursorAgent behavior: copy app/prompt/system-prompt.md if present.
-        """
-        try:
-            project_repo_path = os.path.join(project_path, "repo")
-            if not os.path.exists(project_repo_path):
-                project_repo_path = project_path
-            md_path = os.path.join(project_repo_path, "GEMINI.md")
-            if os.path.exists(md_path):
-                ui.debug(f"GEMINI.md already exists at: {md_path}", "Gemini")
-                return
-            current_file_dir = os.path.dirname(os.path.abspath(__file__))
-            app_dir = os.path.abspath(os.path.join(current_file_dir, "..", "..", ".."))
-            system_prompt_path = os.path.join(app_dir, "prompt", "system-prompt.md")
-            content = "# GEMINI\n\n"
-            if os.path.exists(system_prompt_path):
-                try:
-                    with open(system_prompt_path, "r", encoding="utf-8") as f:
-                        content += f.read()
-                except Exception:
-                    pass
-            with open(md_path, "w", encoding="utf-8") as f:
-                f.write(content)
-            ui.success(f"Created GEMINI.md at: {md_path}", "Gemini")
-        except Exception as e:
-            ui.warning(f"Failed to create GEMINI.md: {e}", "Gemini")
 
     async def _create_client(self) -> _ACPClient:
         """Create a new ACP client instance."""
@@ -213,8 +184,7 @@ class GeminiCLI(BaseCLI):
         model: Optional[str] = None,
         is_initial_prompt: bool = False
     ) -> AsyncGenerator[Message, None]:
-        # Ensure provider markdown exists in project repo
-       # await self._ensure_provider_md(project_path) # TODO: Uncomment this
+        # Skip provider markdown creation - removed for MCP server usage
         turn_id = str(uuid.uuid4())[:8]
         try:
             ui.debug(
@@ -224,18 +194,11 @@ class GeminiCLI(BaseCLI):
         except Exception:
             pass
 
-        # Resolve repo cwd
-        project_repo_path = os.path.join(project_path, "repo")
-        if not os.path.exists(project_repo_path):
-            project_repo_path = project_path
+        # Use the provided project path directly
+        project_repo_path = project_path
 
-        # Project ID
-        path_parts = project_path.split("/")
-        project_id = (
-            path_parts[path_parts.index("repo") - 1]
-            if "repo" in path_parts and path_parts.index("repo") > 0
-            else path_parts[-1]
-        )
+        # Project ID - simplified path handling
+        project_id = os.path.basename(project_path)
 
         # Ensure session
         # In per-call mode, do NOT reuse cached session IDs from previous processes
@@ -706,53 +669,13 @@ class GeminiCLI(BaseCLI):
         return tool_input
 
     async def get_session_id(self, project_id: str) -> Optional[str]:
-        if self.db_session:
-            try:
-                from claudable_helper.models.projects import Project
-
-                project = (
-                    self.db_session.query(Project)
-                    .filter(Project.id == project_id)
-                    .first()
-                )
-                if project and project.active_cursor_session_id:
-                    try:
-                        data = json.loads(project.active_cursor_session_id)
-                        if isinstance(data, dict) and "gemini" in data:
-                            return data["gemini"]
-                    except Exception:
-                        pass
-            except Exception as e:
-                ui.warning(f"Gemini get_session_id DB error: {e}", "Gemini")
+        """Get stored session ID for project"""
         return self._session_store.get(project_id)
 
     async def set_session_id(self, project_id: str, session_id: str) -> None:
-        if self.db_session:
-            try:
-                from claudable_helper.models.projects import Project
-
-                project = (
-                    self.db_session.query(Project)
-                    .filter(Project.id == project_id)
-                    .first()
-                )
-                if project:
-                    data: Dict[str, Any] = {}
-                    if project.active_cursor_session_id:
-                        try:
-                            val = json.loads(project.active_cursor_session_id)
-                            if isinstance(val, dict):
-                                data = val
-                            else:
-                                data = {"cursor": val}
-                        except Exception:
-                            data = {"cursor": project.active_cursor_session_id}
-                    data["gemini"] = session_id
-                    project.active_cursor_session_id = json.dumps(data)
-                    self.db_session.commit()
-            except Exception as e:
-                ui.warning(f"Gemini set_session_id DB error: {e}", "Gemini")
+        """Store session ID for project in memory"""
         self._session_store[project_id] = session_id
+        ui.debug(f"Gemini session stored for project {project_id}: {session_id}", "Gemini")
 
 
 __all__ = ["GeminiCLI"]

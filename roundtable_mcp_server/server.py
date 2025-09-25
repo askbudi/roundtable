@@ -12,6 +12,7 @@ import json
 import logging
 import os
 import sys
+import tomllib
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Set
@@ -285,7 +286,7 @@ async def codex_subagent(
     instruction: str,
     project_path: Optional[str] = None,
     session_id: Optional[str] = None,
-    model: Optional[str] = None,
+    model: Optional[str] = 'gpt-5',
     is_initial_prompt: bool = False,
     ctx: Context = None
 ) -> str:
@@ -303,7 +304,7 @@ async def codex_subagent(
         instruction: The coding task or instruction to execute
         project_path: ABSOLUTE path to the project directory (e.g., '/home/user/myproject'). If not provided, uses current working directory.
         session_id: Optional session ID for conversation continuity
-        model: Optional model to use (e.g., 'gpt-5', 'claude-3.5-sonnet')
+        model: Optional model to use ( 'gpt-5' is the only supported model)
         is_initial_prompt: Whether this is the first prompt in a new session
 
     Returns:
@@ -630,7 +631,7 @@ async def cursor_subagent(
         instruction: The coding task or instruction to execute
         project_path: ABSOLUTE path to the project directory (e.g., '/home/user/myproject'). If not provided, uses current working directory.
         session_id: Optional session ID for conversation continuity
-        model: Optional model to use (e.g., 'gpt-5', 'sonnet-4', 'opus-4.1')
+        model: Optional model to use (e.g., 'gpt-5', 'sonnet-4', 'sonnet-4-thinking')
         is_initial_prompt: Whether this is the first prompt in a new session
 
     Returns:
@@ -805,7 +806,7 @@ async def gemini_subagent(
         instruction: The coding task or instruction to execute
         project_path: ABSOLUTE path to the project directory (e.g., '/home/user/myproject'). If not provided, uses current working directory.
         session_id: Optional session ID for conversation continuity
-        model: Optional model to use (e.g., 'gemini-2.5-pro', 'gemini-2.5-flash')
+        model: Optional model to use ( 'gemini-2.5-pro', 'gemini-2.5-flash' are the only supported models)
         is_initial_prompt: Whether this is the first prompt in a new session
 
     Returns:
@@ -977,6 +978,25 @@ async def run_availability_check():
     await availability_main()
 
 
+def get_version() -> str:
+    """Read version from pyproject.toml."""
+    try:
+        # Get the path to pyproject.toml relative to this file
+        current_dir = Path(__file__).parent
+        pyproject_path = current_dir.parent / "pyproject.toml"
+
+        if not pyproject_path.exists():
+            return "unknown"
+
+        with open(pyproject_path, "rb") as f:
+            pyproject_data = tomllib.load(f)
+
+        return pyproject_data.get("project", {}).get("version", "unknown")
+    except Exception as e:
+        logger.warning(f"Could not read version from pyproject.toml: {e}")
+        return "unknown"
+
+
 def main():
     """Main entry point for the MCP server."""
     import argparse
@@ -1035,8 +1055,9 @@ Priority Order:
     initialize_config()
 
     # Normal server startup
+    version = get_version()
     logger.info("=" * 60)
-    logger.info(f"Roundtable AI MCP Server starting at {datetime.now()}")
+    logger.info(f"Roundtable AI MCP Server v{version} starting at {datetime.now()}")
     logger.info("=" * 60)
 
     try:
