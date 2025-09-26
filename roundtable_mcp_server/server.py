@@ -444,7 +444,7 @@ async def codex_subagent(
 
     except Exception as e:
         error_msg = f"Error executing Codex subagent: {str(e)}"
-        await ctx.error(error_msg, exc_info=True)
+        await ctx.error(error_msg)
         return f"❌ {error_msg}"
 
 
@@ -612,7 +612,7 @@ async def claude_subagent(
 
     except Exception as e:
         error_msg = f"Error executing Claude subagent: {str(e)}"
-        await ctx.error(error_msg, exc_info=True)
+        await ctx.error(error_msg)
         return f"❌ {error_msg}"
 
 
@@ -791,7 +791,7 @@ async def cursor_subagent(
 
     except Exception as e:
         error_msg = f"Error executing Cursor subagent: {str(e)}"
-        await ctx.error(error_msg, exc_info=True)
+        await ctx.error(error_msg)
         return f"❌ {error_msg}"
 
 
@@ -957,7 +957,7 @@ async def gemini_subagent(
 
     except Exception as e:
         error_msg = f"Error executing Gemini subagent: {str(e)}"
-        await ctx.error(error_msg, exc_info=True)
+        await ctx.error(error_msg)
         return f"❌ {error_msg}"
 
 
