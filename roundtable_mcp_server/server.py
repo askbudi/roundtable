@@ -437,9 +437,10 @@ async def codex_subagent(
         logger.info("Codex subagent execution completed")
         logger.debug(f"[MCP-TOOL] Codex execution completed - total messages: {message_count}, agent_responses: {len(agent_responses)}, tool_uses: {len(tool_uses)}")
         logger.debug(f"Result summary: {summary[:200]}..." if len(summary) > 200 else f"Result: {summary}")
-        if config.verbose:
-            return summary  
-        return agent_responses[-1]
+
+        final_response = summary if config.verbose else agent_responses[-1]
+        logger.info(f"[TOOL-RESPONSE] Codex final response: {final_response}")
+        return final_response
 
 
     except Exception as e:
@@ -606,9 +607,10 @@ async def claude_subagent(
         logger.info("Claude subagent execution completed")
         logger.debug(f"[MCP-TOOL] Claude execution completed - total messages: {message_count}, agent_responses: {len(agent_responses)}, tool_uses: {len(tool_uses)}")
         logger.debug(f"Result summary: {summary[:200]}..." if len(summary) > 200 else f"Result: {summary}")
-        if config.verbose:
-            return summary
-        return agent_responses[-1] if agent_responses else "✅ Claude Code task completed successfully"
+
+        final_response = summary if config.verbose else (agent_responses[-1] if agent_responses else "✅ Claude Code task completed successfully")
+        logger.info(f"[TOOL-RESPONSE] Claude final response: {final_response}")
+        return final_response
 
     except Exception as e:
         error_msg = f"Error executing Claude subagent: {str(e)}"
@@ -785,9 +787,10 @@ async def cursor_subagent(
         logger.debug(
             f"Result summary: {summary[:200]}..." if len(summary) > 200 else f"Result: {summary}"
         )
-        if config.verbose:
-            return summary
-        return agent_responses[-1] if agent_responses else summary
+
+        final_response = summary if config.verbose else (agent_responses[-1] if agent_responses else summary)
+        logger.info(f"[TOOL-RESPONSE] Cursor final response: {final_response}")
+        return final_response
 
     except Exception as e:
         error_msg = f"Error executing Cursor subagent: {str(e)}"
@@ -951,9 +954,10 @@ async def gemini_subagent(
         logger.info("Gemini subagent execution completed")
         logger.debug(f"[MCP-TOOL] Gemini execution completed - total messages: {message_count}, agent_responses: {len(agent_responses)}, tool_uses: {len(tool_uses)}")
         logger.debug(f"Result summary: {summary[:200]}..." if len(summary) > 200 else f"Result: {summary}")
-        if config.verbose:
-            return summary
-        return agent_responses[-1] if agent_responses else "✅ Gemini task completed successfully"
+
+        final_response = summary if config.verbose else (agent_responses[-1] if agent_responses else "✅ Gemini task completed successfully")
+        logger.info(f"[TOOL-RESPONSE] Gemini final response: {final_response}")
+        return final_response
 
     except Exception as e:
         error_msg = f"Error executing Gemini subagent: {str(e)}"
