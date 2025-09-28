@@ -347,7 +347,7 @@ async def codex_subagent(
         logger.error(error_msg)
         return f"❌ {error_msg}"
 
-    logger.info(f"Executing Codex subagent with instruction: {instruction[:100]}...")
+    logger.info(f"Codex: {model} [INSTRUCTION]: {instruction}")
     logger.debug(f"[MCP-TOOL] codex_subagent started - project_path: {project_path}, model: {model}, session_id: {session_id}")
     
 
@@ -436,7 +436,7 @@ async def codex_subagent(
 
         logger.info("Codex subagent execution completed")
         logger.debug(f"[MCP-TOOL] Codex execution completed - total messages: {message_count}, agent_responses: {len(agent_responses)}, tool_uses: {len(tool_uses)}")
-        logger.debug(f"Result summary: {summary[:200]}..." if len(summary) > 200 else f"Result: {summary}")
+        logger.debug(f"Result summary: {summary}")
 
         final_response = summary if config.verbose else agent_responses[-1]
         logger.info(f"[TOOL-RESPONSE] Codex final response: {final_response}")
@@ -516,7 +516,7 @@ async def claude_subagent(
         logger.error(error_msg)
         return f"❌ {error_msg}"
 
-    logger.info(f"Executing Claude subagent with instruction: {instruction[:100]}...")
+    logger.info(f"Claude: {model} [INSTRUCTION]: {instruction}")
     logger.debug(f"[MCP-TOOL] claude_subagent started - project_path: {project_path}, model: {model}, session_id: {session_id}")
 
     try:
@@ -606,7 +606,7 @@ async def claude_subagent(
 
         logger.info("Claude subagent execution completed")
         logger.debug(f"[MCP-TOOL] Claude execution completed - total messages: {message_count}, agent_responses: {len(agent_responses)}, tool_uses: {len(tool_uses)}")
-        logger.debug(f"Result summary: {summary[:200]}..." if len(summary) > 200 else f"Result: {summary}")
+        logger.debug(f"Result summary: {summary}")
 
         final_response = summary if config.verbose else (agent_responses[-1] if agent_responses else "✅ Claude Code task completed successfully")
         logger.info(f"[TOOL-RESPONSE] Claude final response: {final_response}")
@@ -665,7 +665,7 @@ async def cursor_subagent(
         logger.error(error_msg)
         return f"❌ {error_msg}"
 
-    logger.info(f"Executing Cursor subagent with instruction: {instruction[:100]}...")
+    logger.info(f"Cursor: {model} [INSTRUCTION]: {instruction}")
     logger.debug(f"[MCP-TOOL] cursor_subagent started - project_path: {project_path}, model: {model}, session_id: {session_id}")
 
     # Prefer streaming via adapter (to emit MCP progress), with safe fallback
@@ -753,7 +753,7 @@ async def cursor_subagent(
                 logger.error(f"Cursor Agent error: {content}")
                 return f"❌ Cursor Agent execution failed: {content}"
             elif msg_type_str == "result":
-                logger.debug(f"Cursor final result received: {content[:100]}...")
+                logger.debug(f"Cursor final result received: {content}")
                 # Store the result content for the final response
                 if content and str(content).strip():
                     agent_responses.append(str(content).strip())
@@ -784,9 +784,7 @@ async def cursor_subagent(
 
         logger.info("Cursor subagent execution completed")
         logger.debug(f"[MCP-TOOL] Cursor execution completed - total messages: {message_count}, agent_responses: {len(agent_responses)}, tool_uses: {len(tool_uses)}")
-        logger.debug(
-            f"Result summary: {summary[:200]}..." if len(summary) > 200 else f"Result: {summary}"
-        )
+        logger.debug(f"Result summary: {summary}")
 
         final_response = summary if config.verbose else (agent_responses[-1] if agent_responses else summary)
         logger.info(f"[TOOL-RESPONSE] Cursor final response: {final_response}")
@@ -863,7 +861,7 @@ async def gemini_subagent(
         logger.error(error_msg)
         return f"❌ {error_msg}"
 
-    logger.info(f"Executing Gemini subagent with instruction: {instruction[:100]}...")
+    logger.info(f"Gemini: {model} [INSTRUCTION]: {instruction}")
     logger.debug(f"[MCP-TOOL] gemini_subagent started - project_path: {project_path}, model: {model}, session_id: {session_id}")
 
     try:
@@ -953,7 +951,7 @@ async def gemini_subagent(
 
         logger.info("Gemini subagent execution completed")
         logger.debug(f"[MCP-TOOL] Gemini execution completed - total messages: {message_count}, agent_responses: {len(agent_responses)}, tool_uses: {len(tool_uses)}")
-        logger.debug(f"Result summary: {summary[:200]}..." if len(summary) > 200 else f"Result: {summary}")
+        logger.debug(f"Result summary: {summary}")
 
         final_response = summary if config.verbose else (agent_responses[-1] if agent_responses else "✅ Gemini task completed successfully")
         logger.info(f"[TOOL-RESPONSE] Gemini final response: {final_response}")
