@@ -19,7 +19,7 @@ from typing import Any, AsyncGenerator, Awaitable, Callable, Dict, List, Optiona
 from claudable_helper.core.terminal_ui import ui
 from claudable_helper.models.messages import Message
 
-from ..base import BaseCLI, CLIType, create_subprocess_with_large_buffer
+from ..base import BaseCLI, CLIType
 
 
 @dataclass
@@ -48,8 +48,7 @@ class _ACPClient:
         print(f"🔧 [Qwen] Starting ACP client with command: {self._cmd}")
 
         print(f"🔧 [Qwen] Current working directory: {self._cwd}")
-        # Use increased buffer limit to handle large outputs
-        self._proc = await create_subprocess_with_large_buffer(
+        self._proc = await asyncio.create_subprocess_exec(
             *self._cmd,
             stdin=asyncio.subprocess.PIPE,
             stdout=asyncio.subprocess.PIPE,
