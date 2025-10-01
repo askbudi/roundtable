@@ -14,7 +14,7 @@ from typing import Any, AsyncGenerator, Callable, Dict, List, Optional
 from claudable_helper.models.messages import Message
 from claudable_helper.core.terminal_ui import ui
 
-from ..base import BaseCLI, CLIType
+from ..base import BaseCLI, CLIType, create_subprocess_with_large_buffer
 
 
 class CursorAgentCLI(BaseCLI):
@@ -265,7 +265,9 @@ class CursorAgentCLI(BaseCLI):
         project_repo_path = project_path
 
         try:
-            process = await asyncio.create_subprocess_exec(
+            # Start Cursor process with increased buffer limit to handle large outputs
+            # This prevents "Separator is found, but chunk is longer than limit" errors
+            process = await create_subprocess_with_large_buffer(
                 *cmd,
                 stdin=asyncio.subprocess.DEVNULL,  # Explicitly close stdin
                 stdout=asyncio.subprocess.PIPE,

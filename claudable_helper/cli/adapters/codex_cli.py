@@ -15,7 +15,7 @@ from typing import Any, AsyncGenerator, Callable, Dict, List, Optional
 from claudable_helper.core.terminal_ui import ui
 from claudable_helper.models.messages import Message
 
-from ..base import BaseCLI, CLIType
+from ..base import BaseCLI, CLIType, create_subprocess_with_large_buffer
 
 
 class CodexCLI(BaseCLI):
@@ -151,8 +151,9 @@ class CodexCLI(BaseCLI):
             ui.debug("Codex resume disabled (fresh session)", "Codex")
 
         try:
-            # Start Codex process
-            process = await asyncio.create_subprocess_exec(
+            # Start Codex process with increased buffer limit to handle large outputs
+            # This prevents "Separator is found, but chunk is longer than limit" errors
+            process = await create_subprocess_with_large_buffer(
                 *cmd,
                 stdin=asyncio.subprocess.PIPE,
                 stdout=asyncio.subprocess.PIPE,
