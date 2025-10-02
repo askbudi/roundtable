@@ -43,7 +43,14 @@ def _import_module_item(module_name: str, item_name: str):
 
 
 # Configure logging with debug traces
-log_file = Path.cwd() / "roundtable_mcp_server.log"
+# Default to .juno_task/logs/ directory for consistency with juno_task CLI
+log_dir = Path.cwd() / ".juno_task" / "logs"
+try:
+    log_dir.mkdir(parents=True, exist_ok=True)
+    log_file = log_dir / "roundtable_mcp_server.log"
+except (OSError, PermissionError):
+    # Fallback to current directory if .juno_task/logs/ creation fails
+    log_file = Path.cwd() / "roundtable_mcp_server.log"
 logging.basicConfig(
     level=logging.DEBUG,
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
