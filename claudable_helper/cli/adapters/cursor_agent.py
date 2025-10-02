@@ -283,10 +283,41 @@ class CursorAgentCLI(BaseCLI):
             assistant_message_buffer = ""
             result_received = False  # Track if we received result event
 
+            # Process streaming events with timeout to prevent hanging
+            READLINE_TIMEOUT = 300  # 5 minutes timeout for readline operations
+            consecutive_timeouts = 0
+            max_consecutive_timeouts = 3  # Allow up to 3 consecutive timeouts before giving up
+
             while True:
-                line = await reader.readline()
-                if not line:
-                    break
+                try:
+                    # Add timeout to readline to prevent indefinite hanging
+                    line = await asyncio.wait_for(reader.readline(), timeout=READLINE_TIMEOUT)
+                    consecutive_timeouts = 0  # Reset timeout counter on successful read
+
+                    if not line:
+                        break
+                except asyncio.TimeoutError:
+                    consecutive_timeouts += 1
+                    ui.warning(f"Readline timeout #{consecutive_timeouts} - process may be idle", "Cursor")
+
+                    # Check if process is still alive
+                    if process.returncode is not None:
+                        ui.info("Process has terminated, ending stream", "Cursor")
+                        break
+
+                    # If we've had too many consecutive timeouts, assume process is hung
+                    if consecutive_timeouts >= max_consecutive_timeouts:
+                        ui.error(f"Process appears hung after {consecutive_timeouts} timeouts, terminating", "Cursor")
+                        try:
+                            process.terminate()
+                            await asyncio.wait_for(process.wait(), timeout=10)
+                        except asyncio.TimeoutError:
+                            ui.warning("Process did not terminate gracefully, killing", "Cursor")
+                            process.kill()
+                        break
+
+                    # Continue to next iteration to try reading again
+                    continue
                 line_str = line.decode().strip()
                 if not line_str:
                     continue
