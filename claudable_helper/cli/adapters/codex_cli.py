@@ -15,7 +15,7 @@ from typing import Any, AsyncGenerator, Callable, Dict, List, Optional
 from claudable_helper.core.terminal_ui import ui
 from claudable_helper.models.messages import Message
 
-from ..base import BaseCLI, CLIType
+from ..base import BaseCLI, CLIType, LineBuffer
 
 
 class CodexCLI(BaseCLI):
@@ -160,6 +160,9 @@ class CodexCLI(BaseCLI):
                 cwd=project_repo_path,
             )
 
+            # Wrap stdout with LineBuffer for large NDJSON handling
+            reader = LineBuffer(process.stdout)
+
             # Message buffering
             agent_message_buffer = ""
             current_request_id = None
@@ -170,7 +173,7 @@ class CodexCLI(BaseCLI):
             max_timeout = 100  # Max lines to read for session init
 
             while not session_ready and timeout_count < max_timeout:
-                line = await process.stdout.readline()
+                line = await reader.readline()
                 if not line:
                     break
 
@@ -322,7 +325,11 @@ class CodexCLI(BaseCLI):
                 ui.debug(f"Sent user input: {request_id}", "Codex")
 
             # Process streaming events
-            async for line in process.stdout:
+            while True:
+                line = await reader.readline()
+                if not line:
+                    break
+
                 line_str = line.decode().strip()
                 if not line_str:
                     continue

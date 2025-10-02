@@ -19,7 +19,7 @@ from typing import Any, AsyncGenerator, Awaitable, Callable, Dict, List, Optiona
 from claudable_helper.core.terminal_ui import ui
 from claudable_helper.models.messages import Message
 
-from ..base import BaseCLI, CLIType
+from ..base import BaseCLI, CLIType, LineBuffer
 
 
 @dataclass

@@ -14,7 +14,7 @@ from typing import Any, AsyncGenerator, Callable, Dict, List, Optional
 from claudable_helper.models.messages import Message
 from claudable_helper.core.terminal_ui import ui
 
-from ..base import BaseCLI, CLIType
+from ..base import BaseCLI, CLIType, LineBuffer
 
 
 class CursorAgentCLI(BaseCLI):
@@ -273,6 +273,9 @@ class CursorAgentCLI(BaseCLI):
                 cwd=project_repo_path,
             )
 
+            # Wrap stdout with LineBuffer for large NDJSON handling
+            reader = LineBuffer(process.stdout)
+
             # Start stderr reader task
             stderr_task = asyncio.create_task(self._drain_stderr(process.stderr))
 
@@ -280,7 +283,10 @@ class CursorAgentCLI(BaseCLI):
             assistant_message_buffer = ""
             result_received = False  # Track if we received result event
 
-            async for line in process.stdout:
+            while True:
+                line = await reader.readline()
+                if not line:
+                    break
                 line_str = line.decode().strip()
                 if not line_str:
                     continue
@@ -500,8 +506,9 @@ class CursorAgentCLI(BaseCLI):
             return
 
         try:
+            stderr_reader = LineBuffer(stderr)
             while True:
-                line = await stderr.readline()
+                line = await stderr_reader.readline()
                 if not line:
                     break
                 # Optionally log stderr for debugging

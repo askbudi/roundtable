@@ -17,6 +17,33 @@ from typing import Any, AsyncGenerator, Callable, Dict, List, Optional
 from ..models.messages import Message
 
 
+class LineBuffer:
+    """Dead simple line buffer for async streams.
+
+    Handles arbitrary line lengths by reading in chunks until newline found.
+    Solves asyncio StreamReader 64KB buffer limit for large NDJSON responses.
+    """
+
+    def __init__(self, stream):
+        self.stream = stream
+        self.buffer = b''
+
+    async def readline(self):
+        """Read until newline, handling arbitrary line lengths."""
+        while b'\n' not in self.buffer:
+            chunk = await self.stream.read(8192)  # 8KB chunks
+            if not chunk:
+                # EOF
+                line = self.buffer
+                self.buffer = b''
+                return line
+            self.buffer += chunk
+
+        # Split on first newline
+        line, self.buffer = self.buffer.split(b'\n', 1)
+        return line + b'\n'
+
+
 def get_project_root() -> str:
     """Return project root directory using relative path navigation.
 
