@@ -133,9 +133,10 @@ class _ACPClient:
     async def _reader_loop(self) -> None:
         assert self._proc and self._proc.stdout
         stdout = self._proc.stdout
+        reader = LineBuffer(stdout)
         buffer = b""
         while True:
-            line = await stdout.readline()
+            line = await reader.readline()
             if not line:
                 break
             line = line.strip()
