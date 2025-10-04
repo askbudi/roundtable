@@ -205,9 +205,10 @@ class _ACPClient:
             return
 
         stderr = self._proc.stderr
+        stderr_reader = LineBuffer(stderr)
         try:
             while True:
-                line = await stderr.readline()
+                line = await stderr_reader.readline()
                 if not line:
                     break
                 # Optionally log or process stderr
@@ -373,8 +374,9 @@ class QwenCLI(BaseCLI):
                 proc = QwenCLI._SHARED_CLIENT._proc
                 if proc and proc.stderr:
                     async def _log_stderr(stream):
+                        stderr_reader = LineBuffer(stream)
                         while True:
-                            line = await stream.readline()
+                            line = await stderr_reader.readline()
                             if not line:
                                 break
                             decoded = line.decode(errors="ignore").strip()
