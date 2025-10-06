@@ -2,11 +2,18 @@
 
 This module provides mock implementations of the Claude Code SDK classes
 to make the claudable_helper module importable without the actual SDK.
+
+It now includes a minimal `types` module that mirrors the core classes
+that adapters expect (SystemMessage, AssistantMessage, UserMessage,
+ResultMessage and content blocks like TextBlock, ToolUseBlock,
+ToolResultBlock). This allows local, deterministic tests of message
+flows without hitting the real Claude Code backend.
 """
 from typing import Any, AsyncGenerator, Dict, List, Optional
 import asyncio
 import uuid
 from datetime import datetime
+import types as _types
 
 
 class ClaudeCodeOptions:
@@ -92,16 +99,65 @@ class ClaudeSDKClient:
         return None
 
     async def receive_messages(self):
-        """Mock message receiving method."""
+        """Mock message receiving method emitting realistic typed events.
+
+        Sequence:
+        1) SystemMessage (init + session_id)
+        2) AssistantMessage with ToolUseBlock (LS .)
+        3) AssistantMessage with TextBlock (natural language result)
+        4) ResultMessage (summary metrics)
+        """
         if not self._is_connected:
             raise RuntimeError("Client not connected. Use 'async with' context manager.")
 
-        # Simulate receiving messages after a query
-        instruction = getattr(self, '_last_instruction', 'default task')
-        response_content = f"I'll help you with: {instruction[:50]}{'...' if len(instruction) > 50 else ''}"
+        instruction = getattr(self, "_last_instruction", "default task")
 
-        # Yield a mock message
-        yield MockMessage(content=response_content, role="assistant")
+        # Import our mock types
+        t = sys.modules.get("claude_code_sdk.types")
+        SystemMessage = getattr(t, "SystemMessage")
+        AssistantMessage = getattr(t, "AssistantMessage")
+        TextBlock = getattr(t, "TextBlock")
+        ToolUseBlock = getattr(t, "ToolUseBlock")
+        ResultMessage = getattr(t, "ResultMessage")
+
+        # 1) System init
+        yield SystemMessage(session_id=str(uuid.uuid4()), subtype="init")
+        await asyncio.sleep(0.02)
+
+        # If the instruction looks like counting files, use LS
+        use_ls = "count files" in instruction.lower()
+        if use_ls:
+            # 2) Tool use (LS .)
+            tool = ToolUseBlock(id=str(uuid.uuid4()), name="LS", input={"path": "."})
+            yield AssistantMessage(content=[tool])
+            await asyncio.sleep(0.02)
+
+            # Simulate computing a count. We won't actually touch the FS here to
+            # keep the mock deterministic; just return a plausible value.
+            fake_count = 7
+            text = TextBlock(text=f"Found {fake_count} items in .")
+            yield AssistantMessage(content=[text])
+        else:
+            text = TextBlock(
+                text=(
+                    f"I'll help you with: {instruction[:50]}"
+                    f"{'...' if len(instruction) > 50 else ''}"
+                )
+            )
+            yield AssistantMessage(content=[text])
+
+        await asyncio.sleep(0.02)
+
+        # 4) Result
+        yield ResultMessage(
+            duration_ms=42,
+            duration_api_ms=30,
+            total_cost_usd=0.0,
+            num_turns=1,
+            is_error=False,
+            subtype="complete",
+            session_id=str(uuid.uuid4()),
+        )
 
     async def chat_stream(
         self,
@@ -129,29 +185,70 @@ class ClaudeSDKClient:
 
 
 # Mock types module for compatibility
-class MockTypes:
-    """Mock types namespace."""
-    
-    class MessageContent:
-        def __init__(self, text: str = ""):
+class _TypesModule(_types.ModuleType):
+    """Module-like container for mock Claude Code types."""
+
+    class SystemMessage:
+        def __init__(self, session_id: Optional[str] = None, subtype: Optional[str] = None):
+            self.session_id = session_id
+            self.subtype = subtype
+
+    class TextBlock:
+        def __init__(self, text: str):
             self.text = text
-    
-    class Message:
-        def __init__(self, content: str = "", role: str = "assistant"):
-            self.content = MockTypes.MessageContent(content)
-            self.role = role
-    
-    class StreamingMessage:
-        def __init__(self, content: str = "", role: str = "assistant"):
-            self.content = MockTypes.MessageContent(content)
-            self.role = role
 
+    class ToolUseBlock:
+        def __init__(self, id: str, name: str, input: Dict[str, Any]):
+            self.id = id
+            self.name = name
+            self.input = input
 
-# Create a mock types module structure
-types = MockTypes()
+    class ToolResultBlock:
+        def __init__(self, tool_use_id: str, content: Any = None, is_error: bool = False):
+            self.tool_use_id = tool_use_id
+            self.content = content
+            self.is_error = is_error
+
+    class AssistantMessage:
+        def __init__(self, content: List[Any]):
+            # In the real SDK, content is a list of blocks
+            self.content = content
+
+    class UserMessage:
+        def __init__(self, content: Any):
+            self.content = content
+
+    class ResultMessage:
+        def __init__(
+            self,
+            duration_ms: int = 0,
+            duration_api_ms: int = 0,
+            total_cost_usd: float = 0.0,
+            num_turns: int = 0,
+            is_error: bool = False,
+            subtype: Optional[str] = None,
+            session_id: Optional[str] = None,
+        ):
+            self.duration_ms = duration_ms
+            self.duration_api_ms = duration_api_ms
+            self.total_cost_usd = total_cost_usd
+            self.num_turns = num_turns
+            self.is_error = is_error
+            self.subtype = subtype
+            self.session_id = session_id
 
 
 # Make the mock module importable as claude_code_sdk
 import sys
-sys.modules['claude_code_sdk'] = sys.modules[__name__]
-sys.modules['claude_code_sdk.types'] = types
+sys.modules["claude_code_sdk"] = sys.modules[__name__]
+_types_mod = _TypesModule("claude_code_sdk.types")
+sys.modules["claude_code_sdk.types"] = _types_mod
+
+# Re-export names for convenience
+TextBlock = _types_mod.TextBlock
+ToolUseBlock = _types_mod.ToolUseBlock
+ToolResultBlock = _types_mod.ToolResultBlock
+AssistantMessage = _types_mod.AssistantMessage
+UserMessage = _types_mod.UserMessage
+SystemMessage = _types_mod.SystemMessage
+ResultMessage = _types_mod.ResultMessage

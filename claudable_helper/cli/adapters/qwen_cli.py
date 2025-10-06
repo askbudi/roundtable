@@ -19,7 +19,7 @@ from typing import Any, AsyncGenerator, Awaitable, Callable, Dict, List, Optiona
 from claudable_helper.core.terminal_ui import ui
 from claudable_helper.models.messages import Message
 
-from ..base import BaseCLI, CLIType
+from ..base import BaseCLI, CLIType, LineBuffer
 
 
 @dataclass
@@ -133,9 +133,10 @@ class _ACPClient:
     async def _reader_loop(self) -> None:
         assert self._proc and self._proc.stdout
         stdout = self._proc.stdout
+        reader = LineBuffer(stdout)
         buffer = b""
         while True:
-            line = await stdout.readline()
+            line = await reader.readline()
             if not line:
                 break
             line = line.strip()
@@ -204,9 +205,10 @@ class _ACPClient:
             return
 
         stderr = self._proc.stderr
+        stderr_reader = LineBuffer(stderr)
         try:
             while True:
-                line = await stderr.readline()
+                line = await stderr_reader.readline()
                 if not line:
                     break
                 # Optionally log or process stderr
@@ -372,8 +374,9 @@ class QwenCLI(BaseCLI):
                 proc = QwenCLI._SHARED_CLIENT._proc
                 if proc and proc.stderr:
                     async def _log_stderr(stream):
+                        stderr_reader = LineBuffer(stream)
                         while True:
-                            line = await stream.readline()
+                            line = await stderr_reader.readline()
                             if not line:
                                 break
                             decoded = line.decode(errors="ignore").strip()
