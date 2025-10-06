@@ -1,3 +1,5 @@
+[![MseeP.ai Security Assessment Badge](https://mseep.net/pr/askbudi-roundtable-badge.png)](https://mseep.ai/app/askbudi-roundtable)
+
 # Roundtable AI MCP Server
 
 [![PyPI version](https://badge.fury.io/py/roundtable-ai.svg)](https://badge.fury.io/py/roundtable-ai)
